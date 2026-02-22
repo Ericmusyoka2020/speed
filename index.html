@@ -1,210 +1,166 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Live GeoCam Tracker + Video</title>
+  <title>GeoStream Live - Video + GPS</title>
   <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    :root { --primary: #2563eb; --rec: #ef4444; --bg: #f8fafc; }
-    body { font-family: system-ui, sans-serif; margin:0; background:var(--bg); color:#1e293b; }
-    .container { max-width: 600px; margin:auto; padding:15px; }
-    header { background:#1e293b; color:white; padding:15px; text-align:center; border-radius:0 0 15px 15px; margin-bottom:15px; }
-    #videoArea { background:#000; border-radius:12px; overflow:hidden; margin-bottom:10px; position:relative; box-shadow:0 10px 15px -3px rgba(0,0,0,0.2); }
-    video { width:100%; display:block; }
-    .rec-dot { position:absolute; top:15px; right:15px; height:12px; width:12px; background:red; border-radius:50%; animation:blink 1s infinite; border:2px solid white; }
-    @keyframes blink { 0%,100% {opacity:1;} 50% {opacity:0;} }
-    .stats-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:15px; }
-    .card { background:white; padding:15px; border-radius:12px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
-    .card span { font-size:0.8em; color:#64748b; text-transform:uppercase; font-weight:bold; }
-    .card b { font-size:1.5em; color:var(--primary); display:block; margin-top:5px; }
-    .controls { display:flex; flex-direction:column; gap:8px; }
-    button { padding:14px; border:none; border-radius:10px; font-weight:bold; cursor:pointer; color:white; font-size:1em; transition:transform 0.1s; }
-    button:active { transform:scale(0.98); }
-    .btn-start { background:#059669; }
-    .btn-cam { background:#7c3aed; }
-    .btn-stop { background:#dc2626; }
-    .btn-share { background:#334155; }
-    #map { height:350px; border-radius:15px; margin-top:15px; border:2px solid #e2e8f0; box-shadow:inset 0 2px 4px 0 rgba(0,0,0,0.06); }
-    .viewer-tag { background:#2563eb; color:white; padding:5px 10px; border-radius:20px; font-size:0.8em; display:inline-block; margin-bottom:10px; }
-    #remoteVideo { width:100%; background:#111; border-radius:8px; }
+    :root { --primary: #2563eb; --rec: #ef4444; --bg: #f1f5f9; }
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: var(--bg); color: #1e293b; }
+    header { background: #1e293b; color: white; padding: 1rem; text-align: center; font-weight: bold; }
+    .container { max-width: 600px; margin: auto; padding: 15px; }
+    
+    #videoContainer { background: #000; border-radius: 12px; overflow: hidden; margin-bottom: 15px; position: relative; aspect-ratio: 16/9; display: none; }
+    video { width: 100%; height: 100%; object-fit: cover; }
+    .live-badge { position: absolute; top: 10px; left: 10px; background: red; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; animation: blink 1s infinite; }
+    @keyframes blink { 50% { opacity: 0.5; } }
+
+    .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
+    .card { background: white; padding: 12px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; }
+    .card label { font-size: 11px; color: #64748b; text-transform: uppercase; display: block; }
+    .card span { font-size: 1.2rem; font-weight: bold; color: var(--primary); }
+
+    .controls { display: grid; gap: 10px; }
+    button { padding: 14px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: white; transition: 0.2s; }
+    .btn-go { background: #059669; }
+    .btn-stop { background: #dc2626; }
+    .btn-share { background: #334155; }
+    
+    #map { height: 300px; border-radius: 12px; margin-top: 15px; z-index: 1; }
+    .status-bar { font-size: 12px; text-align: center; margin-top: 10px; color: #64748b; }
   </style>
 </head>
 <body>
-<header>
-  <h1 id="mainTitle">GeoTracker Live + Video</h1>
-</header>
-<div class="container">
-  <div id="viewerIndicator" style="display:none;" class="viewer-tag">📡 Viewing Friend's Live Journey & Camera</div>
 
-  <div id="videoArea" style="display:none;">
-    <video id="preview" autoplay muted playsinline></video>
-    <div class="rec-dot"></div>
+<header>📍 GEOSTREAM LIVE</header>
+
+<div class="container">
+  <div id="videoContainer">
+    <div class="live-badge">LIVE</div>
+    <video id="liveVideo" autoplay muted playsinline></video>
   </div>
 
-  <video id="remoteVideo" autoplay playsinline style="display:none; margin-bottom:10px;"></video>
-
-  <div class="stats-grid">
-    <div class="card"><span>Speed</span><b id="speed">0</b><small>km/h</small></div>
-    <div class="card"><span>Distance</span><b id="distance">0.00</b><small>km</small></div>
-    <div class="card"><span>Duration</span><b id="timer">00:00</b></div>
-    <div class="card"><span>Signal</span><b id="status" style="font-size:1em;">Ready</b></div>
+  <div class="stats">
+    <div class="card"><label>Speed</label><span id="speed">0</span> km/h</div>
+    <div class="card"><label>Distance</label><span id="dist">0.0</span> km</div>
+    <div class="card"><label>Time</label><span id="timer">00:00</span></div>
+    <div class="card"><label>Signal</label><span id="status">Standby</span></div>
   </div>
 
   <div id="operatorUI" class="controls">
-    <button class="btn-start" id="gpsBtn" onclick="toggleGPS()">🛰️ Start Live Journey</button>
-    <button class="btn-cam" id="camBtn" onclick="toggleCameraAndStream()">🎥 Start Camera + Live Stream</button>
-    <button class="btn-stop" onclick="stopAll()">🛑 Stop Everything</button>
-    <button class="btn-share" onclick="copyLiveLink()">🔗 Copy Shareable Live Link</button>
+    <button class="btn-go" onclick="startJourney()">🚀 Start Live Stream & GPS</button>
+    <button class="btn-share" onclick="copyLink()">🔗 Copy Friend's Link</button>
+    <button class="btn-stop" onclick="location.reload()">🛑 End Trip</button>
   </div>
 
   <div id="map"></div>
+  <div class="status-bar" id="peerStatus">Link your journey to start tracking.</div>
 </div>
 
 <script>
   const ABLY_KEY = 'tQeHYQ.ZsPdVg:oHH2d2amT9WrziD8QOrjuZppajh6ijgZZiQ-GsgysUU';
+  let ably, channel, pc, localStream;
+  let isBroadcaster = true;
+  let tripId = new URLSearchParams(window.location.search).get('t') || "trip_" + Math.random().toString(36).substr(2, 7);
 
-  let ably, channel, watchId, localStream, mediaRecorder, peerConnection;
-  let isTracking = false, isStreaming = false;
-  let startTime, totalDist = 0, lastPos = null;
-  let chunks = [];
-
-  const tripId = "trip_" + Math.random().toString(36).substr(2, 9);
   const map = L.map('map').setView([0,0], 2);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-  let path = L.polyline([], {color: '#2563eb', weight: 6, opacity: 0.8}).addTo(map);
-  let marker = L.circleMarker([0,0], {radius: 8, color: 'white', fillColor: '#2563eb', fillOpacity: 1, weight: 3}).addTo(map);
+  const path = L.polyline([], {color: '#2563eb', weight: 5}).addTo(map);
+  const marker = L.circleMarker([0,0], {radius: 6, color: '#fff', fillColor: '#2563eb', fillOpacity:1, weight:2}).addTo(map);
 
+  // --- INITIALIZE ABLY ---
   ably = new Ably.Realtime(ABLY_KEY);
   channel = ably.channels.get(tripId);
 
-  // WebRTC config
-  const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
-
-  // --- BROADCASTER ---
-  async function toggleCameraAndStream() {
-    if (isStreaming) return;
+  // --- BROADCASTER LOGIC ---
+  async function startJourney() {
     try {
-      const mode = confirm("Use back camera? (Cancel = selfie)") ? 'environment' : 'user';
-      localStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: mode },
-        audio: true
-      });
-
-      document.getElementById('videoArea').style.display = 'block';
-      document.getElementById('preview').srcObject = localStream;
-
-      // Optional local recording
-      mediaRecorder = new MediaRecorder(localStream);
-      mediaRecorder.ondataavailable = e => chunks.push(e.data);
-      mediaRecorder.start(2000); // chunks every ~2s — but we won't send them
-
-      isStreaming = true;
-      document.getElementById('camBtn').innerText = "🎥 Live Streaming...";
-
-      // Prepare WebRTC only if broadcaster
-      if (!new URLSearchParams(window.location.search).has('trip')) {
-        setupBroadcasterWebRTC();
-      }
+      localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true });
+      document.getElementById('liveVideo').srcObject = localStream;
+      document.getElementById('videoContainer').style.display = 'block';
+      
+      startGPS();
+      setupWebRTC();
+      
+      document.getElementById('status').innerText = "Streaming";
+      document.getElementById('peerStatus').innerText = "Broadcasting live to the link!";
     } catch (e) {
-      alert("Camera/microphone permission needed\n" + e.message);
+      alert("Camera & GPS permissions are required for live streaming.");
     }
   }
 
-  function setupBroadcasterWebRTC() {
-    peerConnection = new RTCPeerConnection(rtcConfig);
-
-    localStream.getTracks().forEach(track => {
-      peerConnection.addTrack(track, localStream);
-    });
-
-    // Send offer when viewer joins (via presence or manual trigger)
-    channel.presence.enter({ joined: true });
-
-    peerConnection.onnegotiationneeded = async () => {
-      try {
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        channel.publish('offer', peerConnection.localDescription);
-      } catch (e) { console.error("Offer failed", e); }
-    };
-
-    peerConnection.onicecandidate = e => {
-      if (e.candidate) {
-        channel.publish('candidate', e.candidate);
-      }
-    };
-  }
-
-  // --- VIEWER SIDE ---
-  function setupViewerWebRTC() {
-    peerConnection = new RTCPeerConnection(rtcConfig);
-
-    peerConnection.ontrack = e => {
-      const remoteVideo = document.getElementById('remoteVideo');
-      remoteVideo.srcObject = e.streams[0];
-      remoteVideo.style.display = 'block';
-      document.getElementById('status').innerText = "Live Video Connected";
-    };
-
-    peerConnection.onicecandidate = e => {
-      if (e.candidate) channel.publish('candidate', e.candidate);
-    };
-
-    // Wait for offer from broadcaster
-    channel.subscribe('offer', async msg => {
-      const desc = new RTCSessionDescription(msg.data);
-      await peerConnection.setRemoteDescription(desc);
-      const answer = await peerConnection.createAnswer();
-      await peerConnection.setLocalDescription(answer);
-      channel.publish('answer', peerConnection.localDescription);
-    });
-
-    channel.subscribe('candidate', async msg => {
-      try {
-        await peerConnection.addIceCandidate(new RTCIceCandidate(msg.data));
-      } catch (e) { console.warn("ICE candidate error", e); }
-    });
-  }
-
-  // --- COMMON ---
-  function toggleGPS() {
-    if (isTracking) return;
-    isTracking = true;
-    startTime = Date.now();
-    document.getElementById('status').innerText = "Broadcasting";
-    document.getElementById('status').style.color = "#059669";
-
-    watchId = navigator.geolocation.watchPosition(pos => {
-      const { latitude, longitude, speed } = pos.coords;
+  function startGPS() {
+    let lastPos = null, totalDist = 0, start = Date.now();
+    navigator.geolocation.watchPosition(p => {
+      const { latitude, longitude, speed } = p.coords;
       const s = speed ? (speed * 3.6).toFixed(1) : 0;
-
-      if (lastPos) {
-        totalDist += calcDist(lastPos.lat, lastPos.lng, latitude, longitude);
-      }
-      lastPos = { lat: latitude, lng: longitude };
-
-      const t = document.getElementById('timer').innerText;
-      updateUI(s, totalDist.toFixed(2), latitude, longitude);
-
-      channel.publish('update', { s, d: totalDist.toFixed(2), lat: latitude, lng: longitude, t });
-    }, err => {
-      document.getElementById('status').innerText = "GPS Error";
-    }, { enableHighAccuracy: true });
+      if(lastPos) totalDist += calcDist(lastPos.lat, lastPos.lng, latitude, longitude);
+      lastPos = {lat: latitude, lng: longitude};
+      
+      const data = { s, d: totalDist.toFixed(2), lat: latitude, lng: longitude, t: document.getElementById('timer').innerText };
+      updateUI(data);
+      channel.publish('gps', data);
+    }, null, { enableHighAccuracy: true });
 
     setInterval(() => {
-      if (!isTracking) return;
-      const sec = Math.floor((Date.now() - startTime) / 1000);
+      const sec = Math.floor((Date.now() - start)/1000);
       document.getElementById('timer').innerText = new Date(sec * 1000).toISOString().substr(14, 5);
     }, 1000);
   }
 
-  function updateUI(s, d, lat, lng) {
-    document.getElementById('speed').innerText = s;
-    document.getElementById('distance').innerText = d;
-    const pos = [lat, lng];
+  // --- WebRTC (The Live Video Magic) ---
+  function setupWebRTC() {
+    channel.subscribe('signal', async (msg) => {
+      if (msg.data.type === 'offer') {
+        pc = new RTCPeerConnection();
+        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+        await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        channel.publish('signal', pc.localDescription);
+      }
+    });
+  }
+
+  // --- VIEWER LOGIC ---
+  if (new URLSearchParams(window.location.search).has('t')) {
+    isBroadcaster = false;
+    document.getElementById('operatorUI').style.display = 'none';
+    document.getElementById('videoContainer').style.display = 'block';
+    document.getElementById('peerStatus').innerText = "Connecting to live feed...";
+    
+    channel.subscribe('gps', (msg) => updateUI(msg.data));
+    
+    // Request Video via WebRTC
+    pc = new RTCPeerConnection();
+    pc.ontrack = (e) => document.getElementById('liveVideo').srcObject = e.streams[0];
+    
+    pc.onicecandidate = (e) => {
+        if (e.candidate) channel.publish('signal', { candidate: e.candidate });
+    };
+
+    channel.subscribe('signal', async (msg) => {
+      if (msg.data.type === 'answer') await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+      else if (msg.data.candidate) await pc.addIceCandidate(new RTCIceCandidate(msg.data.candidate));
+    });
+
+    (async () => {
+      const offer = await pc.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: true });
+      await pc.setLocalDescription(offer);
+      channel.publish('signal', offer);
+    })();
+  }
+
+  // --- HELPER FUNCTIONS ---
+  function updateUI(data) {
+    document.getElementById('speed').innerText = data.s;
+    document.getElementById('dist').innerText = data.d;
+    document.getElementById('timer').innerText = data.t;
+    const pos = [data.lat, data.lng];
     path.addLatLng(pos);
     marker.setLatLng(pos);
     map.setView(pos, 16);
@@ -212,67 +168,17 @@
 
   function calcDist(lat1, lon1, lat2, lon2) {
     const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2)**2;
-    return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const dLat = (lat2-lat1)*Math.PI/180;
+    const dLon = (lon2-lon1)*Math.PI/180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+    return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   }
 
-  function stopAll() {
-    isTracking = isStreaming = false;
-    if (watchId) navigator.geolocation.clearWatch(watchId);
-    if (localStream) localStream.getTracks().forEach(t => t.stop());
-    if (mediaRecorder) mediaRecorder.stop();
-    if (peerConnection) peerConnection.close();
-    channel.publish('status', { msg: 'Trip has ended' });
-    document.getElementById('status').innerText = "Stopped";
-  }
-
-  function copyLiveLink() {
-    const link = `${window.location.href.split('?')[0]}?trip=${tripId}`;
+  function copyLink() {
+    const link = `${window.location.origin}${window.location.pathname}?t=${tripId}`;
     navigator.clipboard.writeText(link);
-    alert("Share this link!\nFriends will see live map + video.");
+    alert("Live Link Copied! Your friend will see your camera and location live.");
   }
-
-  // Init logic
-  window.onload = () => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.has('trip')) {
-      // Viewer mode
-      const remoteTrip = params.get('trip');
-      channel = ably.channels.get(remoteTrip);
-      document.getElementById('operatorUI').style.display = 'none';
-      document.getElementById('viewerIndicator').style.display = 'block';
-      document.getElementById('mainTitle').innerText = "Live Viewer";
-      setupViewerWebRTC();
-
-      channel.subscribe('update', msg => {
-        const data = msg.data;
-        updateUI(data.s, data.d, data.lat, data.lng);
-        document.getElementById('timer').innerText = data.t;
-      });
-
-      channel.subscribe('status', msg => {
-        document.getElementById('status').innerText = msg.data.msg;
-      });
-    } else {
-      // Broadcaster can also receive own status if wanted
-    }
-
-    // Handle incoming signaling from the other side
-    channel.subscribe('answer', async msg => {
-      if (peerConnection && peerConnection.signalingState === 'have-local-offer') {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(msg.data));
-      }
-    });
-
-    channel.subscribe('candidate', async msg => {
-      if (peerConnection) {
-        try { await peerConnection.addIceCandidate(new RTCIceCandidate(msg.data)); }
-        catch (e) {}
-      }
-    });
-  };
 </script>
 </body>
 </html>
