@@ -1,5 +1,5 @@
 
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -21,7 +21,6 @@
         .bike-animate { animation: drive 3s infinite linear; }
         @keyframes drive { 0% { transform: translateX(-5px); } 50% { transform: translateX(5px); } 100% { transform: translateX(-5px); } }
         
-        /* Pulse for the small install icon */
         .pulse-icon { animation: pulse 2s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
 
@@ -46,11 +45,14 @@
         }
         .slide.active { opacity: 1; transform: scale(1); }
         .progress-bar { height: 4px; background: #22c55e; width: 0%; position: absolute; bottom: 0; transition: width 3.5s linear; }
+        
+        /* Hidden by default so it doesn't flicker for installed users */
+        #installBtn { display: none; }
     </style>
 </head>
 <body class="p-6">
 
-    <div class=g"w-full max-w-md flex flex-col items-center space-y-8 mt-4">
+    <div class="w-full max-w-md flex flex-col items-center space-y-8 mt-4">
         
         <div class="slideshow-container">
             <div class="slide active" style="background-image: url('https://iili.io/qFE3CH7.jpg')"></div>
@@ -91,6 +93,7 @@
     </footer>
 
     <script>
+        // --- Slideshow Logic ---
         let currentSlide = 0;
         const slides = document.querySelectorAll('.slide');
         const pBar = document.getElementById('p-bar');
@@ -105,12 +108,23 @@
         setInterval(nextSlide, 3500);
         setTimeout(() => pBar.style.width = '100%', 100);
 
+        // --- PWA Install Logic ---
         let deferredPrompt;
         const installBtn = document.getElementById('installBtn');
 
+        // 1. Only show the button if the app is NOT already installed
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
         window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevent Chrome 67 and earlier from automatically showing the prompt
             e.preventDefault();
+            // Stash the event so it can be triggered later.
             deferredPrompt = e;
+            
+            // Show the button only if we aren't already in standalone mode
+            if (!isStandalone) {
+                installBtn.style.display = 'flex';
+            }
         });
 
         installBtn.addEventListener('click', async () => {
@@ -118,12 +132,20 @@
                 deferredPrompt.prompt();
                 const { outcome } = await deferredPrompt.userChoice;
                 if (outcome === 'accepted') {
+                    console.log('User accepted the install prompt');
                     installBtn.style.display = 'none';
                 }
                 deferredPrompt = null;
             } else {
-                alert("To install CycleStream:\n\n1. Tap the browser menu (three dots or share icon)\n2. Select 'Add to Home Screen'");
+                // Fallback for iOS or browsers where prompt isn't supported
+                alert("To install CycleStream:\n\n1. Tap the Share icon or Browser Menu\n2. Select 'Add to Home Screen'");
             }
+        });
+
+        // Hide button if the app is successfully installed
+        window.addEventListener('appinstalled', (evt) => {
+            console.log('CycleStream was installed.');
+            installBtn.style.display = 'none';
         });
 
         if ('serviceWorker' in navigator) {
