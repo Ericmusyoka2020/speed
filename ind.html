@@ -17,22 +17,17 @@
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: var(--bg); color: #1e293b; overflow-x: hidden; }
     .container { max-width: 600px; margin: auto; padding: 15px; padding-bottom: 140px; }
     header { background: #1e293b; color: white; padding: 15px; text-align: center; border-radius: 0 0 15px 15px; margin-bottom: 15px; }
-    
     .user-identity { font-size: 0.9em; background: rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 20px; display: inline-block; margin-top: 8px; border: 1px solid rgba(255,255,255,0.2); }
-
     #videoArea { background: #000; border-radius: 12px; overflow: hidden; display: none; margin-bottom: 10px; position: relative; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); }
     video { width: 100%; display: block; }
     .rec-dot { position: absolute; top: 15px; right: 15px; height: 12px; width: 12px; background: red; border-radius: 50%; animation: blink 1s infinite; border: 2px solid white; }
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-    
     .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
     .card { background: white; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
     .card span { font-size: 0.8em; color: #64748b; text-transform: uppercase; font-weight: bold; }
     .card b { font-size: 1.5em; color: var(--primary); display: block; margin-top: 5px; }
-    
     #viewerListCard { background: #fff; padding: 10px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #e2e8f0; }
     .viewer-chip { display: inline-block; background: #e0e7ff; color: #4338ca; padding: 4px 10px; border-radius: 15px; font-size: 0.75em; margin: 2px; font-weight: bold; }
-
     .controls { display: flex; flex-direction: column; gap: 8px; }
     button { padding: 14px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; color: white; font-size: 1em; transition: transform 0.1s; }
     button:active { transform: scale(0.98); }
@@ -41,15 +36,12 @@
     .btn-stop { background: #dc2626; }
     .btn-share { background: #334155; }
     .btn-pdf { background: #0ea5e9; margin-top: 10px; }
-    
     #map { height: 250px; border-radius: 15px; margin-top: 15px; border: 2px solid #e2e8f0; z-index: 1; }
     .viewer-tag { background: var(--viewer); color: white; padding: 8px 15px; border-radius: 20px; font-size: 0.8em; display: inline-block; margin-bottom: 10px; width: 100%; box-sizing: border-box; text-align: center;}
-
     #chat-overlay { position: fixed; bottom: 100px; left: 15px; right: 15px; pointer-events: none; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
     .msg { background: white; color: #1e293b; padding: 12px 18px; border-radius: 18px; width: fit-content; max-width: 80%; box-shadow: 0 4px 15px rgba(0,0,0,0.2); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: auto; }
     .msg.viewer-msg { border-left: 6px solid var(--viewer); align-self: flex-start; border-bottom-left-radius: 2px; }
     .msg.driver-msg { border-right: 6px solid var(--driver); align-self: flex-end; border-bottom-right-radius: 2px; text-align: right; }
-    
     .chat-input-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px; display: flex; gap: 8px; box-shadow: 0 -4px 15px rgba(0,0,0,0.08); z-index: 1001; }
     .chat-input-bar input { flex: 1; padding: 12px 15px; border: 2px solid #f1f5f9; background: #f8fafc; border-radius: 25px; outline: none; font-size: 16px; }
     .btn-send { background: var(--primary); width: 80px; }
@@ -108,7 +100,7 @@
   let isTracking = false, isRecording = false;
   let startTime, totalDist = 0, lastPos = null;
   let chunks = [];
-  let tripLog = []; // NEW: Array to store data points for PDF
+  let tripLog = []; 
 
   const params = new URLSearchParams(window.location.search);
   const isViewer = params.has('trip');
@@ -165,7 +157,6 @@
         
         doc.addImage(imgData, 'PNG', 0, 30, pdfWidth, pdfHeight);
 
-        // Add Data Table
         if (tripLog.length > 0) {
             const tableRows = tripLog.map(row => [row.time, row.speed + " km/h", row.dist + " km", `${row.lat.toFixed(4)}, ${row.lng.toFixed(4)}`]);
             doc.autoTable({
@@ -189,24 +180,44 @@
     document.getElementById('status').innerText = "Live Broadcast";
     
     watchId = navigator.geolocation.watchPosition(pos => {
+      // 1. FILTER: Ignore low accuracy updates (avoids table jitter)
+      if (pos.coords.accuracy > 30) return; 
+
       const { latitude, longitude, speed } = pos.coords;
-      const s = speed ? (speed * 3.6).toFixed(1) : 0;
-      if(lastPos) totalDist += calcDist(lastPos.lat, lastPos.lng, latitude, longitude);
+      
+      // 2. FILTER: Calc speed manually if hardware speed is null or shaky
+      let s = speed ? (speed * 3.6) : 0;
+      
+      let moveStep = 0;
+      if(lastPos) {
+          moveStep = calcDist(lastPos.lat, lastPos.lng, latitude, longitude);
+          // 3. FILTER: Only add distance if moving > 2 meters (prevents drift)
+          if (moveStep > 0.002) { 
+              totalDist += moveStep;
+          } else {
+              // If moving less than 2 meters, force speed to 0
+              s = 0;
+          }
+      }
+      
+      // Final display formatting
+      const displaySpeed = s < 0.8 ? "0.0" : s.toFixed(1);
       lastPos = {lat: latitude, lng: longitude};
       const currentTime = document.getElementById('timer').innerText;
       
-      // LOG DATA POINT FOR PDF
       tripLog.push({
           time: currentTime,
-          speed: s,
+          speed: displaySpeed,
           dist: totalDist.toFixed(2),
           lat: latitude,
           lng: longitude
       });
 
-      updateUI(s, totalDist.toFixed(2), latitude, longitude);
-      if(channel) channel.publish('update', { s, d: totalDist.toFixed(2), lat: latitude, lng: longitude, t: currentTime });
-    }, null, {enableHighAccuracy: true});
+      updateUI(displaySpeed, totalDist.toFixed(2), latitude, longitude);
+      if(channel) channel.publish('update', { s: displaySpeed, d: totalDist.toFixed(2), lat: latitude, lng: longitude, t: currentTime });
+    }, 
+    (err) => console.error(err), 
+    {enableHighAccuracy: true, timeout: 5000, maximumAge: 0});
     
     setInterval(() => {
       if(!isTracking) return;
