@@ -3,191 +3,202 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GeoCam Tracker Pro</title>
+  <title>Live Journey Tracker</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    :root { --primary: #0f172a; --accent: #3b82f6; }
-    body { font-family: -apple-system, sans-serif; margin: 0; background: #f8fafc; color: #1e293b; }
-    header { padding: 15px; background: var(--primary); color: white; text-align: center; }
+    :root { --bg: #f0f4f8; --card: #ffffff; --primary: #2563eb; --danger: #dc2626; }
+    body { font-family: sans-serif; margin: 0; background: var(--bg); color: #1e293b; }
     
-    /* Video Container */
-    #videoContainer { position: relative; width: 100%; max-width: 600px; margin: 10px auto; background: #000; border-radius: 12px; overflow: hidden; aspect-ratio: 4/3; }
-    #preview { width: 100%; height: 100%; object-fit: cover; }
-    .cam-controls { position: absolute; bottom: 10px; left: 10px; display: flex; gap: 5px; }
+    /* Layout */
+    .container { max-width: 600px; margin: auto; padding: 15px; }
+    header { background: #1e293b; color: white; padding: 15px; text-align: center; border-radius: 0 0 15px 15px; }
     
-    .stats-overlay { display: flex; justify-content: space-around; background: white; padding: 15px; margin: 10px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
-    .stat-box { text-align: center; }
-    .stat-val { display: block; font-size: 1.2em; font-weight: bold; color: var(--accent); }
+    /* Video Box */
+    #videoArea { background: #000; border-radius: 12px; overflow: hidden; position: relative; display: none; margin-bottom: 15px; }
+    video { width: 100%; display: block; }
     
-    .main-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 10px; }
-    button { padding: 12px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; }
-    .btn-start { background: #22c55e; color: white; }
-    .btn-stop { background: #ef4444; color: white; }
-    .btn-share { background: var(--accent); color: white; grid-column: span 2; }
+    /* Stats Grid */
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; }
+    .stat-card { background: var(--card); padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .val { font-size: 1.4em; font-weight: bold; color: var(--primary); display: block; }
     
-    #map { height: 300px; margin: 15px; border-radius: 12px; }
+    /* Buttons */
+    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    button { padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+    .btn-gps { background: #059669; color: white; }
+    .btn-cam { background: #7c3aed; color: white; }
+    .btn-stop { background: var(--danger); color: white; grid-column: span 2; }
+    .btn-share { background: #334155; color: white; grid-column: span 2; margin-top: 10px; }
+    button:disabled { opacity: 0.5; }
+
+    #map { height: 300px; border-radius: 12px; margin-top: 15px; border: 2px solid #cbd5e1; }
+    
+    /* Viewer Mode specific */
+    .viewer-only { border: 4px solid #2563eb; }
   </style>
 </head>
 <body>
 
-<header>
-  <h1>GeoCam Tracker</h1>
+<header id="headerTitle">
+  <h1>Journey Master</h1>
 </header>
 
-<div id="videoContainer">
-  <video id="preview" autoplay muted playsinline></video>
-  <div class="cam-controls">
-    <button onclick="switchCamera('user')">🤳 Selfie</button>
-    <button onclick="switchCamera('environment')">📷 Back</button>
+<div class="container">
+  <div id="videoArea">
+    <video id="preview" autoplay muted playsinline></video>
+    <div style="position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.6); color:white; padding:5px 10px; border-radius:5px; font-size:12px;">REC LIVE</div>
   </div>
-</div>
 
-<div class="stats-overlay">
-  <div class="stat-box"><span>Speed</span><span id="speed" class="stat-val">0</span><small>km/h</small></div>
-  <div class="stat-box"><span>Distance</span><span id="distance" class="stat-val">0.0</span><small>km</small></div>
-  <div class="stat-box"><span>Time</span><span id="timer" class="stat-val">00:00</span></div>
-</div>
+  <div class="stats-grid">
+    <div class="stat-card"><span>Speed</span><span id="speed" class="val">0</span><small>km/h</small></div>
+    <div class="stat-card"><span>Distance</span><span id="distance" class="val">0.00</span><small>km</small></div>
+    <div class="stat-card"><span>Time</span><span id="timer" class="val">00:00</span></div>
+    <div class="stat-card"><span>Status</span><span id="status" class="val" style="font-size:1em;">Ready</span></div>
+  </div>
 
-<div class="main-btns">
-  <button id="startBtn" class="btn-start">Start Journey & Video</button>
-  <button id="stopBtn" class="btn-stop" disabled>Stop & Save</button>
-  <button id="shareBtn" class="btn-share">🔗 Copy Live Journey Link</button>
+  <div id="operatorUI" class="controls">
+    <button id="gpsBtn" class="btn-gps" onclick="toggleGPS()">🛰️ Start Tracking</button>
+    <button id="camBtn" class="btn-cam" onclick="toggleCamera()">📷 Use Camera</button>
+    <button id="stopBtn" class="btn-stop" onclick="stopAll()" disabled>🛑 Stop Everything</button>
+    <button class="btn-share" onclick="copyShareLink()">🔗 Copy Link for Friend</button>
+  </div>
+  
+  <div id="map"></div>
 </div>
-
-<div id="map"></div>
 
 <script>
-  let watchId, mediaRecorder, stream;
+  let watchId, stream, mediaRecorder;
+  let isTracking = false, isRecording = false;
+  let startTime, totalDist = 0, lastPos = null;
   let chunks = [];
-  let tracking = false;
-  let startTime;
-  let totalDistance = 0;
-  let lastCoord = null;
-  let currentFacingMode = 'environment';
 
-  const map = L.map('map').setView([0, 0], 15);
+  const map = L.map('map').setView([0,0], 15);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-  let path = L.polyline([], {color: '#3b82f6', weight: 6}).addTo(map);
+  let path = L.polyline([], {color: '#2563eb', weight: 5}).addTo(map);
 
-  // --- Camera Logic ---
-  async function initCamera(facingMode) {
-    if (stream) stream.getTracks().forEach(track => track.stop());
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: facingMode },
-        audio: true
-      });
-      document.getElementById('preview').srcObject = stream;
-      currentFacingMode = facingMode;
-    } catch (err) {
-      alert("Camera access denied or not found.");
+  // --- 1. GPS LOGIC ---
+  function toggleGPS() {
+    if(!isTracking) {
+      isTracking = true;
+      startTime = Date.now();
+      document.getElementById('gpsBtn').innerText = "🛰️ Tracking...";
+      document.getElementById('status').innerText = "Live";
+      document.getElementById('stopBtn').disabled = false;
+      
+      watchId = navigator.geolocation.watchPosition(pos => {
+        const { latitude, longitude, speed } = pos.coords;
+        const s = speed ? (speed * 3.6).toFixed(1) : 0;
+        document.getElementById('speed').innerText = s;
+
+        if(lastPos) {
+          const d = calcDist(lastPos.lat, lastPos.lng, latitude, longitude);
+          totalDist += d;
+          document.getElementById('distance').innerText = totalDist.toFixed(2);
+        }
+        lastPos = {lat: latitude, lng: longitude};
+        path.addLatLng([latitude, longitude]);
+        map.setView([latitude, longitude]);
+      }, null, {enableHighAccuracy: true});
+
+      // Timer update
+      window.timerInt = setInterval(() => {
+        const sec = Math.floor((Date.now() - startTime)/1000);
+        document.getElementById('timer').innerText = new Date(sec * 1000).toISOString().substr(14, 5);
+      }, 1000);
     }
   }
 
-  function switchCamera(mode) {
-    initCamera(mode);
+  // --- 2. CAMERA LOGIC ---
+  async function toggleCamera() {
+    if(!isRecording) {
+      try {
+        const mode = confirm("Press OK for Back Camera, Cancel for Selfie") ? 'environment' : 'user';
+        stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: mode}, audio: true});
+        document.getElementById('videoArea').style.display = 'block';
+        document.getElementById('preview').srcObject = stream;
+        
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.ondataavailable = e => chunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(chunks, {type: 'video/mp4'});
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = 'journey_video.mp4'; a.click();
+        };
+        mediaRecorder.start();
+        isRecording = true;
+        document.getElementById('camBtn').innerText = "📷 Recording...";
+        document.getElementById('stopBtn').disabled = false;
+      } catch(e) { alert("Camera error: " + e.message); }
+    }
   }
 
-  // --- Tracking Logic ---
-  function startJourney() {
-    tracking = true;
-    startTime = Date.now();
-    chunks = [];
-    
-    // Start Recording
-    mediaRecorder = new MediaRecorder(stream);
-    mediaRecorder.ondataavailable = e => chunks.push(e.data);
-    mediaRecorder.onstop = saveVideo;
-    mediaRecorder.start();
-
-    // Start GPS
-    watchId = navigator.geolocation.watchPosition(pos => {
-      const { latitude, longitude, speed } = pos.coords;
-      const currentSpeed = speed ? (speed * 3.6).toFixed(1) : 0;
-      document.getElementById('speed').textContent = currentSpeed;
-
-      if (lastCoord) {
-        const d = calcDist(lastCoord.lat, lastCoord.lng, latitude, longitude);
-        totalDistance += d;
-        document.getElementById('distance').textContent = totalDistance.toFixed(2);
-      }
-      lastCoord = {lat: latitude, lng: longitude};
-      path.addLatLng([latitude, longitude]);
-      map.panTo([latitude, longitude]);
-    }, null, { enableHighAccuracy: true });
-
-    // Timer logic
-    setInterval(() => {
-      if(!tracking) return;
-      const diff = Math.floor((Date.now() - startTime) / 1000);
-      const m = Math.floor(diff/60).toString().padStart(2,'0');
-      const s = (diff%60).toString().padStart(2,'0');
-      document.getElementById('timer').textContent = `${m}:${s}`;
-    }, 1000);
-  }
-
-  function stopJourney() {
-    tracking = false;
-    navigator.geolocation.clearWatch(watchId);
-    mediaRecorder.stop();
-    document.getElementById('startBtn').disabled = false;
+  // --- 3. STOP EVERYTHING ---
+  function stopAll() {
+    if(isTracking) {
+      navigator.geolocation.clearWatch(watchId);
+      clearInterval(window.timerInt);
+    }
+    if(isRecording) {
+      mediaRecorder.stop();
+      stream.getTracks().forEach(t => t.stop());
+    }
+    document.getElementById('status').innerText = "Finished";
     document.getElementById('stopBtn').disabled = true;
-  }
-
-  function saveVideo() {
-    const blob = new Blob(chunks, { type: 'video/mp4' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Journey_${new Date().getTime()}.mp4`;
-    a.click();
+    isTracking = false; isRecording = false;
   }
 
   function calcDist(lat1, lon1, lat2, lon2) {
     const R = 6371;
-    const dLat = (lat2-lat1) * Math.PI/180;
-    const dLon = (lon2-lon1) * Math.PI/180;
+    const dLat = (lat2-lat1)*Math.PI/180;
+    const dLon = (lon2-lon1)*Math.PI/180;
     const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
     return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   }
 
-  // --- Sharing Logic ---
-  document.getElementById('shareBtn').onclick = () => {
-    // We encode the current journey data into the URL so someone opening it sees the stats
-    const journeyData = {
-      d: totalDistance.toFixed(2),
-      s: document.getElementById('speed').textContent,
-      t: document.getElementById('timer').textContent,
-      loc: lastCoord
+  // --- 4. VIEWER LINK LOGIC ---
+  function copyShareLink() {
+    const data = {
+      s: document.getElementById('speed').innerText,
+      d: document.getElementById('distance').innerText,
+      t: document.getElementById('timer').innerText,
+      lat: lastPos ? lastPos.lat : 0,
+      lng: lastPos ? lastPos.lng : 0,
+      v: isRecording // Tell viewer if a video was active
     };
-    const encodedData = btoa(JSON.stringify(journeyData));
-    const shareUrl = `${window.location.origin}${window.location.pathname}?data=${encodedData}`;
-    
-    navigator.clipboard.writeText(shareUrl);
-    alert("Journey link copied to clipboard! Send this to a friend.");
-  };
+    const blob = btoa(JSON.stringify(data));
+    const url = `${window.location.origin}${window.location.pathname}?view=${blob}`;
+    navigator.clipboard.writeText(url);
+    alert("Viewer Link Copied! Send this to your friend.");
+  }
 
-  // Check if opening a shared link
+  // --- 5. VIEWER MODE DETECTION ---
   window.onload = () => {
-    initCamera('environment');
     const params = new URLSearchParams(window.location.search);
-    if(params.has('data')) {
-      const data = JSON.parse(atob(params.get('data')));
-      alert(`Viewing Shared Journey:\nDistance: ${data.d}km\nTime: ${data.t}`);
-      if(data.loc) map.setView([data.loc.lat, data.loc.lng], 15);
+    if(params.has('view')) {
+      // Viewer interface setup
+      document.getElementById('operatorUI').style.display = 'none';
+      document.getElementById('headerTitle').innerHTML = "<h1>Viewing Live Trip</h1>";
+      
+      const raw = JSON.parse(atob(params.get('view')));
+      document.getElementById('speed').innerText = raw.s;
+      document.getElementById('distance').innerText = raw.d;
+      document.getElementById('timer').innerText = raw.t;
+      document.getElementById('status').innerText = "Shared View";
+      
+      if(raw.lat !== 0) {
+        map.setView([raw.lat, raw.lng], 16);
+        L.marker([raw.lat, raw.lng]).addTo(map).bindPopup("Current Location").openPopup();
+      }
+      
+      if(raw.v) {
+        alert("The user was recording video during this journey.");
+      }
     }
   };
-
-  document.getElementById('startBtn').onclick = () => {
-    startJourney();
-    document.getElementById('startBtn').disabled = true;
-    document.getElementById('stopBtn').disabled = false;
-  };
-
-  document.getElementById('stopBtn').onclick = stopJourney;
-
 </script>
+
 </body>
 </html>
