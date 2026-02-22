@@ -1,232 +1,114 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Live GeoCam Tracker + Persistent Chat</title>
-  <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <style>
-    :root { --primary: #2563eb; --rec: #ef4444; --bg: #f8fafc; --driver: #059669; --viewer: #7c3aed; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: var(--bg); color: #1e293b; overflow-x: hidden; }
-    .container { max-width: 600px; margin: auto; padding: 15px; padding-bottom: 140px; }
-    header { background: #1e293b; color: white; padding: 15px; text-align: center; border-radius: 0 0 15px 15px; margin-bottom: 15px; }
-   
-    #videoArea { background: #000; border-radius: 12px; overflow: hidden; display: none; margin-bottom: 10px; position: relative; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); }
-    video { width: 100%; display: block; }
-    .rec-dot { position: absolute; top: 15px; right: 15px; height: 12px; width: 12px; background: red; border-radius: 50%; animation: blink 1s infinite; border: 2px solid white; }
-    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-   
-    .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
-    .card { background: white; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .card span { font-size: 0.8em; color: #64748b; text-transform: uppercase; font-weight: bold; }
-    .card b { font-size: 1.5em; color: var(--primary); display: block; margin-top: 5px; }
-   
-    .controls { display: flex; flex-direction: column; gap: 8px; }
-    button { padding: 14px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; color: white; font-size: 1em; transition: transform 0.1s; }
-    button:active { transform: scale(0.98); }
-    .btn-start { background: #059669; }
-    .btn-cam { background: #7c3aed; }
-    .btn-stop { background: #dc2626; }
-    .btn-share { background: #334155; }
-   
-    #map { height: 250px; border-radius: 15px; margin-top: 15px; border: 2px solid #e2e8f0; }
-    .viewer-tag { background: #2563eb; color: white; padding: 5px 10px; border-radius: 20px; font-size: 0.8em; display: inline-block; margin-bottom: 10px; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CycleStream | Welcome</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: radial-gradient(circle at top, #1e293b, #0f172a); font-family: 'Inter', sans-serif; overflow-x: hidden; }
+        .bike-animate { animation: drive 3s infinite linear; }
+        @keyframes drive { 0% { transform: translateX(-5px); } 50% { transform: translateX(5px); } 100% { transform: translateX(-5px); } }
 
-    /* --- PERSISTENT CHAT OVERLAY --- */
-    #chat-overlay { position: fixed; bottom: 100px; left: 15px; right: 15px; pointer-events: none; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
-    .msg { background: white; color: #1e293b; padding: 12px 18px; border-radius: 18px; width: fit-content; max-width: 80%; box-shadow: 0 4px 15px rgba(0,0,0,0.2); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: auto; position: relative; }
-    .msg.viewer-msg { border-left: 6px solid var(--viewer); align-self: flex-start; border-bottom-left-radius: 2px; }
-    .msg.driver-msg { border-right: 6px solid var(--driver); align-self: flex-end; border-bottom-right-radius: 2px; text-align: right; }
-    @keyframes popIn { from { opacity: 0; transform: scale(0.8) translateY(20px); } to { opacity: 1; transform: scale(1) translateY(0); } }
-    
-    .chat-input-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px; display: flex; gap: 8px; box-shadow: 0 -4px 15px rgba(0,0,0,0.08); z-index: 1001; align-items: center; }
-    .chat-input-bar input { flex: 1; padding: 12px 15px; border: 2px solid #f1f5f9; background: #f8fafc; border-radius: 25px; outline: none; font-size: 16px; }
-    .chat-input-bar button { padding: 0 15px; border-radius: 25px; height: 45px; font-size: 0.9em; }
-    .btn-send { background: var(--primary); flex: 0.3; }
-    .btn-clear { background: #64748b; flex: 0.2; font-size: 0.8em !important; padding: 0 10px !important; }
-  </style>
+        /* Mobile-First Slideshow */
+        .slideshow-container {
+            width: 90vw;
+            max-width: 500px;
+            aspect-ratio: 4 / 3;
+            position: relative;
+            overflow: hidden;
+            border-radius: 1.25rem;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .slide {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            transition: opacity 0.8s ease-in-out, transform 4s linear;
+            background-size: cover;
+            background-position: center;
+            transform: scale(1.1);
+        }
+        .slide.active { opacity: 1; transform: scale(1); }
+        .progress-bar { height: 4px; background: #22c55e; width: 0%; position: absolute; bottom: 0; transition: width 3.5s linear; }
+    </style>
 </head>
-<body>
+<body class="min-h-screen flex flex-col items-center justify-between text-white p-6 py-12">
 
-<header>
-  <h1 id="mainTitle">GeoTracker Live</h1>
-</header>
+    <div class="w-full flex flex-col items-center">
+        <div class="slideshow-container mb-8">
+            <div class="slide active" style="background-image: url('https://s.alicdn.com/@sc02/kf/Hdfc68ff3fe8d4bdaa9a1ec9146419fcaT.jpg_1200x1200.jpg')"></div>
+            <div class="slide" style="background-image: url('https://s.alicdn.com/@sc02/kf/H2ae43f3b25984ddf9d719df94f8d39fah.jpg')"></div>
+            <div class="slide" style="background-image: url('http://cardosystems.com/cdn/shop/articles/using-gps-app-motorcycle-handlebars.jpg?v=1704203899')"></div>
+            <div class="slide" style="background-image: url('https://www.advpulse.com/wp-content/uploads/2019/07/rever-liveride-app-safety-suite-features-1024x683.jpg')"></div>
+            <div class="slide" style="background-image: url('https://journal.riserapp.com/wp-content/uploads/2023/11/liveTrackingMobile.png')"></div>
+            <div class="slide" style="background-image: url('https://www.garmin.com/en-US/newsroom/wp-content/uploads/2026/02/ZUMO-XT3-Press-Release-Image-2.0-Large.jpeg')"></div>
+            <div class="slide" style="background-image: url('https://www.garmin.com/en-AU/blog/wp-content/uploads/2026/02/Press-Image-FINAL.jpg')"></div>
+            <div class="slide" style="background-image: url('https://www.getmotobit.com/wp-content/uploads/blog-how-to-plan-a-motorcycle-journey-5.jpg')"></div>
+            <div class="slide" style="background-image: url('https://cdn.allafrica.com/download/pic/main/main/csiid/00510782:0b104021f9b42a6f47a3c3ebd65512bf:arc614x376:w735:us1.jpg')"></div>
+            <div class="slide" style="background-image: url('https://cdn.allafrica.com/download/pic/main/main/csiid/00601206:e406761ea15808850b7ec4794071748d:arc614x376:w735:us1.jpg')"></div>
+            <div id="p-bar" class="progress-bar"></div>
+        </div>
 
-<div class="container">
-  <div id="viewerIndicator" style="display:none;" class="viewer-tag">📡 Viewing Friend's Live Journey</div>
+        <div class="bike-animate mb-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>
+        </div>
+        <h1 class="text-4xl font-black italic tracking-tighter">CYCLE<span class="text-green-500">STREAM</span></h1>
+        <p class="text-slate-400 text-sm uppercase tracking-widest">Broadcast Live</p>
+    </div>
 
-  <div id="videoArea">
-    <video id="preview" autoplay muted playsinline></video>
-    <div class="rec-dot"></div>
-  </div>
+    <div class="w-full max-w-xs space-y-4">
+        <a href="ind.html" class="block text-center bg-green-500 text-black font-black py-4 px-8 rounded-xl shadow-lg shadow-green-500/20 active:scale-95 transition-transform">
+            CONTINUE TO RIDE
+        </a>
+        <button id="installBtn" class="hidden w-full border border-slate-700 bg-slate-800/50 text-white font-bold py-3 px-8 rounded-xl text-sm">
+            INSTALL APP
+        </button>
+    </div>
 
-  <div class="stats-grid">
-    <div class="card"><span>Speed</span><b id="speed">0</b><small>km/h</small></div>
-    <div class="card"><span>Distance</span><b id="distance">0.00</b><small>km</small></div>
-    <div class="card"><span>Duration</span><b id="timer">00:00</b></div>
-    <div class="card"><span>Signal</span><b id="status" style="font-size:1em;">Ready</b></div>
-  </div>
+    <script>
+        // Slideshow Logic
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const pBar = document.getElementById('p-bar');
 
-  <div id="operatorUI" class="controls">
-    <button class="btn-start" id="gpsBtn" onclick="toggleGPS()">🛰️ Start Live Journey</button>
-    <button class="btn-cam" id="camBtn" onclick="toggleCamera()">📷 Record Video</button>
-    <button class="btn-stop" onclick="stopAll()">🛑 Stop Everything</button>
-    <button class="btn-share" onclick="copyLiveLink()">🔗 Copy Shareable Live Link</button>
-  </div>
+        function nextSlide() {
+            slides[currentSlide].classList.remove('active');
+            currentSlide = (currentSlide + 1) % slides.length;
+            slides[currentSlide].classList.add('active');
+            pBar.style.width = '0%';
+            setTimeout(() => pBar.style.width = '100%', 50);
+        }
+        setInterval(nextSlide, 3500);
+        setTimeout(() => pBar.style.width = '100%', 100);
 
-  <div id="map"></div>
-</div>
+        // PWA Installation Logic
+        let deferredPrompt;
+        const installBtn = document.getElementById('installBtn');
 
-<div id="chat-overlay"></div>
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installBtn.classList.remove('hidden'); // Show button if installable
+        });
 
-<div class="chat-input-bar">
-  <button class="btn-clear" onclick="clearMessages()">Clear</button>
-  <input type="text" id="chatInput" placeholder="Reply..." onkeypress="if(event.key==='Enter') sendComment()">
-  <button class="btn-send" onclick="sendComment()">Send</button>
-</div>
+        installBtn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') installBtn.classList.add('hidden');
+                deferredPrompt = null;
+            }
+        });
 
-<script>
-  const ABLY_KEY = 'tQeHYQ.ZsPdVg:oHH2d2amT9WrziD8QOrjuZppajh6ijgZZiQ-GsgysUU';
-  let ably, channel, watchId, stream, mediaRecorder;
-  let isTracking = false, isRecording = false;
-  let startTime, totalDist = 0, lastPos = null;
-  let chunks = [];
-
-  const params = new URLSearchParams(window.location.search);
-  const isViewer = params.has('trip');
-  const tripId = isViewer ? params.get('trip') : "trip_" + Math.random().toString(36).substr(2, 9);
-  const myRole = isViewer ? "viewer" : "driver";
-
-  const map = L.map('map').setView([0,0], 2);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-  let path = L.polyline([], {color: '#2563eb', weight: 6, opacity: 0.8}).addTo(map);
-  let marker = L.circleMarker([0,0], {radius: 8, color: 'white', fillColor: '#2563eb', fillOpacity: 1, weight: 3}).addTo(map);
-
-  try {
-      ably = new Ably.Realtime(ABLY_KEY);
-      channel = ably.channels.get(tripId);
-      channel.subscribe('comment', (msg) => displayComment(msg.data.role, msg.data.text));
-      channel.subscribe('clear', () => { document.getElementById('chat-overlay').innerHTML = ''; });
-  } catch(e) { console.error("Ably Init Failed"); }
-
-  function sendComment() {
-    const input = document.getElementById('chatInput');
-    const text = input.value.trim();
-    if(!text) return;
-    channel.publish('comment', { role: myRole, text: text });
-    input.value = '';
-  }
-
-  function clearMessages() {
-    // This clears it for BOTH people via Ably
-    channel.publish('clear', {});
-  }
-
-  function displayComment(role, text) {
-    const container = document.getElementById('chat-overlay');
-    
-    // Clear the screen if the OTHER person replies
-    if (role !== myRole) { container.innerHTML = ''; }
-
-    const el = document.createElement('div');
-    el.className = `msg ${role}-msg`;
-    el.innerHTML = `<strong>${role === 'driver' ? 'Driver' : 'Friend'}:</strong><br>${text}`;
-    
-    // Manual tap to dismiss
-    el.onclick = () => el.remove();
-    
-    container.appendChild(el);
-  }
-
-  // --- LOGIC FUNCTIONS ---
-  function toggleGPS() {
-    if(isTracking) return;
-    isTracking = true;
-    startTime = Date.now();
-    document.getElementById('status').innerText = "Broadcasting";
-    watchId = navigator.geolocation.watchPosition(pos => {
-      const { latitude, longitude, speed } = pos.coords;
-      const s = speed ? (speed * 3.6).toFixed(1) : 0;
-      if(lastPos) totalDist += calcDist(lastPos.lat, lastPos.lng, latitude, longitude);
-      lastPos = {lat: latitude, lng: longitude};
-      const currentTime = document.getElementById('timer').innerText;
-      updateUI(s, totalDist.toFixed(2), latitude, longitude);
-      if(channel) channel.publish('update', { s, d: totalDist.toFixed(2), lat: latitude, lng: longitude, t: currentTime });
-    }, null, {enableHighAccuracy: true});
-    setInterval(() => {
-      if(!isTracking) return;
-      const sec = Math.floor((Date.now() - startTime)/1000);
-      document.getElementById('timer').innerText = new Date(sec * 1000).toISOString().substr(14, 5);
-    }, 1000);
-  }
-
-  async function toggleCamera() {
-    try {
-        const mode = confirm("Use Back Camera?") ? 'environment' : 'user';
-        stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: mode}, audio: true});
-        document.getElementById('videoArea').style.display = 'block';
-        document.getElementById('preview').srcObject = stream;
-        mediaRecorder = new MediaRecorder(stream);
-        mediaRecorder.ondataavailable = e => chunks.push(e.data);
-        mediaRecorder.onstop = () => {
-          const blob = new Blob(chunks, {type: 'video/mp4'});
-          const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-          a.download = `Journey.mp4`; a.click();
-        };
-        mediaRecorder.start();
-        isRecording = true;
-        document.getElementById('camBtn').innerText = "🎥 Recording...";
-    } catch(e) { alert("Camera Error"); }
-  }
-
-  function stopAll() {
-    isTracking = false;
-    navigator.geolocation.clearWatch(watchId);
-    if(isRecording) { mediaRecorder.stop(); stream.getTracks().forEach(t => t.stop()); }
-    document.getElementById('status').innerText = "Stopped";
-    if(channel) channel.publish('status', { msg: 'Trip has ended' });
-  }
-
-  function updateUI(s, d, lat, lng) {
-    document.getElementById('speed').innerText = s;
-    document.getElementById('distance').innerText = d;
-    const newPos = [lat, lng];
-    path.addLatLng(newPos);
-    marker.setLatLng(newPos);
-    map.setView(newPos, 16);
-  }
-
-  function calcDist(lat1, lon1, lat2, lon2) {
-    const R = 6371;
-    const dLat = (lat2-lat1)*Math.PI/180;
-    const dLon = (lon2-lon1)*Math.PI/180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
-    return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  }
-
-  function copyLiveLink() {
-    const link = `${window.location.origin}${window.location.pathname}?trip=${tripId}`;
-    navigator.clipboard.writeText(link);
-    alert("Live Link Copied!");
-  }
-
-  window.onload = () => {
-    if(isViewer) {
-      document.getElementById('operatorUI').style.display = 'none';
-      document.getElementById('viewerIndicator').style.display = 'block';
-      document.getElementById('mainTitle').innerText = "Live Viewer";
-      channel.subscribe('update', (msg) => {
-          updateUI(msg.data.s, msg.data.d, msg.data.lat, msg.data.lng);
-          document.getElementById('timer').innerText = msg.data.t;
-          document.getElementById('status').innerText = "Connected";
-      });
-      channel.subscribe('status', (msg) => {
-          document.getElementById('status').innerText = msg.data.msg;
-      });
-    }
-  };
-</script>
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+    </script>
 </body>
 </html>
