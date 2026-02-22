@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Live GeoCam Tracker + Chat</title>
+  <title>Live GeoCam Tracker + Persistent Chat</title>
   <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     :root { --primary: #2563eb; --rec: #ef4444; --bg: #f8fafc; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: var(--bg); color: #1e293b; overflow-x: hidden; }
-    .container { max-width: 600px; margin: auto; padding: 15px; padding-bottom: 100px; }
+    .container { max-width: 600px; margin: auto; padding: 15px; padding-bottom: 120px; }
     header { background: #1e293b; color: white; padding: 15px; text-align: center; border-radius: 0 0 15px 15px; margin-bottom: 15px; }
    
     #videoArea { background: #000; border-radius: 12px; overflow: hidden; display: none; margin-bottom: 10px; position: relative; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); }
@@ -31,17 +31,20 @@
     .btn-stop { background: #dc2626; }
     .btn-share { background: #334155; }
    
-    #map { height: 300px; border-radius: 15px; margin-top: 15px; border: 2px solid #e2e8f0; }
+    #map { height: 250px; border-radius: 15px; margin-top: 15px; border: 2px solid #e2e8f0; }
     .viewer-tag { background: #2563eb; color: white; padding: 5px 10px; border-radius: 20px; font-size: 0.8em; display: inline-block; margin-bottom: 10px; }
 
-    /* --- CHAT STYLES --- */
-    #chat-overlay { position: fixed; bottom: 80px; left: 10px; right: 10px; pointer-events: none; z-index: 1000; display: flex; flex-direction: column; gap: 5px; }
-    .msg { background: rgba(30, 41, 59, 0.85); color: white; padding: 8px 15px; border-radius: 15px; width: fit-content; max-width: 80%; animation: slideIn 0.3s ease-out; font-size: 0.9em; backdrop-filter: blur(4px); }
-    @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+    /* --- CHAT OVERLAY LOGIC --- */
+    #chat-overlay { position: fixed; bottom: 90px; left: 15px; right: 15px; pointer-events: none; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+    .msg { background: white; color: #1e293b; padding: 12px 18px; border-radius: 18px; width: fit-content; max-width: 85%; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-left: 5px solid var(--primary); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: auto; }
+    .msg.viewer-msg { border-left-color: #7c3aed; align-self: flex-start; }
+    .msg.driver-msg { border-left-color: #059669; align-self: flex-end; }
+    @keyframes popIn { from { opacity: 0; transform: scale(0.8) translateY(20px); } to { opacity: 1; transform: scale(1) translateY(0); } }
     
-    .chat-input-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px; display: flex; gap: 10px; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); z-index: 1001; }
-    .chat-input-bar input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 25px; outline: none; }
-    .chat-input-bar button { padding: 10px 20px; background: var(--primary); border-radius: 25px; }
+    .chat-input-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px; display: flex; gap: 10px; box-shadow: 0 -4px 15px rgba(0,0,0,0.08); z-index: 1001; }
+    .chat-input-bar input { flex: 1; padding: 12px 20px; border: 2px solid #f1f5f9; background: #f8fafc; border-radius: 25px; outline: none; font-size: 16px; }
+    .chat-input-bar input:focus { border-color: var(--primary); }
+    .chat-input-bar button { padding: 0 25px; background: var(--primary); border-radius: 25px; height: 45px; }
   </style>
 </head>
 <body>
@@ -67,7 +70,7 @@
 
   <div id="operatorUI" class="controls">
     <button class="btn-start" id="gpsBtn" onclick="toggleGPS()">🛰️ Start Live Journey</button>
-    <button class="btn-cam" id="camBtn" onclick="toggleCamera()">📷 Record Video (Optional)</button>
+    <button class="btn-cam" id="camBtn" onclick="toggleCamera()">📷 Record Video</button>
     <button class="btn-stop" onclick="stopAll()">🛑 Stop Everything</button>
     <button class="btn-share" onclick="copyLiveLink()">🔗 Copy Shareable Live Link</button>
   </div>
@@ -78,7 +81,7 @@
 <div id="chat-overlay"></div>
 
 <div class="chat-input-bar">
-  <input type="text" id="chatInput" placeholder="Send a live comment..." onkeypress="if(event.key==='Enter') sendComment()">
+  <input type="text" id="chatInput" placeholder="Send a reply..." onkeypress="if(event.key==='Enter') sendComment()">
   <button onclick="sendComment()">Send</button>
 </div>
 
@@ -89,24 +92,22 @@
   let startTime, totalDist = 0, lastPos = null;
   let chunks = [];
 
-  // Determine if we are Broadcaster or Viewer
   const params = new URLSearchParams(window.location.search);
   const isViewer = params.has('trip');
   const tripId = isViewer ? params.get('trip') : "trip_" + Math.random().toString(36).substr(2, 9);
+  const myRole = isViewer ? "viewer" : "driver";
 
   const map = L.map('map').setView([0,0], 2);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
   let path = L.polyline([], {color: '#2563eb', weight: 6, opacity: 0.8}).addTo(map);
   let marker = L.circleMarker([0,0], {radius: 8, color: 'white', fillColor: '#2563eb', fillOpacity: 1, weight: 3}).addTo(map);
 
-  // Initialize Ably
   try {
       ably = new Ably.Realtime(ABLY_KEY);
       channel = ably.channels.get(tripId);
       
-      // Listen for comments
       channel.subscribe('comment', (msg) => {
-        displayComment(msg.data.user, msg.data.text);
+        displayComment(msg.data.role, msg.data.text);
       });
   } catch(e) { console.error("Ably Auth Failed"); }
 
@@ -115,32 +116,37 @@
     const text = input.value.trim();
     if(!text) return;
 
-    const userType = isViewer ? "Viewer" : "Driver";
-    channel.publish('comment', { user: userType, text: text });
+    // Clear my previous own messages locally before sending new one (optional UX)
+    channel.publish('comment', { role: myRole, text: text });
     input.value = '';
   }
 
-  function displayComment(user, text) {
+  function displayComment(role, text) {
     const container = document.getElementById('chat-overlay');
-    const el = document.createElement('div');
-    el.className = 'msg';
-    el.innerHTML = `<strong>${user}:</strong> ${text}`;
-    container.appendChild(el);
     
-    // Remove after 8 seconds (ephemeral)
-    setTimeout(() => {
-      el.style.opacity = '0';
-      setTimeout(() => el.remove(), 500);
-    }, 8000);
+    // LOGIC: If a reply comes from the OTHER person, clear the screen
+    // This makes it so messages stay "until replied"
+    if (role !== myRole) {
+        container.innerHTML = ''; 
+    }
+
+    const el = document.createElement('div');
+    el.className = `msg ${role}-msg`;
+    el.innerHTML = `<strong>${role.toUpperCase()}:</strong><br>${text}`;
+    
+    // Allow manual click to dismiss if they want to see the map
+    el.onclick = () => el.remove();
+    
+    container.appendChild(el);
+    container.scrollTop = container.scrollHeight;
   }
 
-  // --- BROADCASTER FUNCTIONS ---
+  // --- STANDARD TRACKING LOGIC ---
   function toggleGPS() {
     if(isTracking) return;
     isTracking = true;
     startTime = Date.now();
     document.getElementById('status').innerText = "Broadcasting";
-   
     watchId = navigator.geolocation.watchPosition(pos => {
       const { latitude, longitude, speed } = pos.coords;
       const s = speed ? (speed * 3.6).toFixed(1) : 0;
@@ -150,7 +156,6 @@
       updateUI(s, totalDist.toFixed(2), latitude, longitude);
       if(channel) channel.publish('update', { s, d: totalDist.toFixed(2), lat: latitude, lng: longitude, t: currentTime });
     }, null, {enableHighAccuracy: true});
-
     setInterval(() => {
       if(!isTracking) return;
       const sec = Math.floor((Date.now() - startTime)/1000);
@@ -168,10 +173,8 @@
         mediaRecorder.ondataavailable = e => chunks.push(e.data);
         mediaRecorder.onstop = () => {
           const blob = new Blob(chunks, {type: 'video/mp4'});
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          a.download = `Journey.mp4`;
-          a.click();
+          const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+          a.download = `Journey.mp4`; a.click();
         };
         mediaRecorder.start();
         isRecording = true;
@@ -207,10 +210,9 @@
   function copyLiveLink() {
     const link = `${window.location.origin}${window.location.pathname}?trip=${tripId}`;
     navigator.clipboard.writeText(link);
-    alert("Link Copied! Friends can now track and chat with you live.");
+    alert("Link Copied!");
   }
 
-  // --- VIEWER MODE ---
   window.onload = () => {
     if(isViewer) {
       document.getElementById('operatorUI').style.display = 'none';
