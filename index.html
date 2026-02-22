@@ -3,192 +3,191 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pro GPS Tracker - All Day Active</title>
+  <title>GeoCam Tracker Pro</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    body { font-family: sans-serif; margin: 0; background: #f0fdfa; }
-    header { padding: 15px; background: #134e4a; color: white; text-align: center; }
-    main { padding: 20px; display: flex; flex-direction: column; align-items: center; }
-    .box { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 600px; }
-    .data { font-size: 1.2em; font-weight: bold; margin: 12px 0; color: #0f766e; }
-    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
-    button { padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-    #startBtn { background: #10b981; color: white; }
-    #pauseBtn { background: #f59e0b; color: white; }
-    #stopBtn { background: #ef4444; color: white; }
-    button:disabled { background: #d1d5db; cursor: not-allowed; }
-    #map { height: 350px; width: 100%; max-width: 600px; margin: 20px 0; border-radius: 12px; border: 2px solid #134e4a; }
-    #places { width: 100%; max-width: 600px; height: 150px; overflow-y: auto; background: #fff; padding: 10px; border-radius: 8px; font-size: 0.85em; }
-    canvas { max-width: 600px; width: 100%; margin-top: 20px; }
+    :root { --primary: #0f172a; --accent: #3b82f6; }
+    body { font-family: -apple-system, sans-serif; margin: 0; background: #f8fafc; color: #1e293b; }
+    header { padding: 15px; background: var(--primary); color: white; text-align: center; }
+    
+    /* Video Container */
+    #videoContainer { position: relative; width: 100%; max-width: 600px; margin: 10px auto; background: #000; border-radius: 12px; overflow: hidden; aspect-ratio: 4/3; }
+    #preview { width: 100%; height: 100%; object-fit: cover; }
+    .cam-controls { position: absolute; bottom: 10px; left: 10px; display: flex; gap: 5px; }
+    
+    .stats-overlay { display: flex; justify-content: space-around; background: white; padding: 15px; margin: 10px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+    .stat-box { text-align: center; }
+    .stat-val { display: block; font-size: 1.2em; font-weight: bold; color: var(--accent); }
+    
+    .main-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 10px; }
+    button { padding: 12px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+    .btn-start { background: #22c55e; color: white; }
+    .btn-stop { background: #ef4444; color: white; }
+    .btn-share { background: var(--accent); color: white; grid-column: span 2; }
+    
+    #map { height: 300px; margin: 15px; border-radius: 12px; }
   </style>
 </head>
 <body>
 
-  <header>
-    <h1>GPS Route & Speed Tracker</h1>
-  </header>
+<header>
+  <h1>GeoCam Tracker</h1>
+</header>
 
-  <main>
-    <div class="box">
-      <div class="data">📍 Speed: <span id="speed">0.0</span> km/h</div>
-      <div class="data">📏 Distance: <span id="distance">0.00</span> km</div>
-      <div class="data">📡 Status: <b id="status" style="color: grey;">Idle</b></div>
-      
-      <div class="controls">
-        <button id="startBtn">Start</button>
-        <button id="pauseBtn" disabled>Pause</button>
-        <button id="stopBtn" disabled>Stop & Graph</button>
-        <button id="exportBtn">Export CSV</button>
-      </div>
-    </div>
+<div id="videoContainer">
+  <video id="preview" autoplay muted playsinline></video>
+  <div class="cam-controls">
+    <button onclick="switchCamera('user')">🤳 Selfie</button>
+    <button onclick="switchCamera('environment')">📷 Back</button>
+  </div>
+</div>
 
-    <div id="map"></div>
-    <div id="places"><b>Location Log:</b><br></div>
-    <canvas id="chart"></canvas>
-  </main>
+<div class="stats-overlay">
+  <div class="stat-box"><span>Speed</span><span id="speed" class="stat-val">0</span><small>km/h</small></div>
+  <div class="stat-box"><span>Distance</span><span id="distance" class="stat-val">0.0</span><small>km</small></div>
+  <div class="stat-box"><span>Time</span><span id="timer" class="stat-val">00:00</span></div>
+</div>
 
-  <script>
-    let watchId, tracking = false, paused = false;
-    let coordsArray = [], speedArray = [], timeArray = [], totalDistance = 0;
-    let lastLat = null, lastLon = null;
-    let lastGeocodeTime = 0; // To prevent API spam
+<div class="main-btns">
+  <button id="startBtn" class="btn-start">Start Journey & Video</button>
+  <button id="stopBtn" class="btn-stop" disabled>Stop & Save</button>
+  <button id="shareBtn" class="btn-share">🔗 Copy Live Journey Link</button>
+</div>
 
-    const speedEl = document.getElementById('speed');
-    const distanceEl = document.getElementById('distance');
-    const statusEl = document.getElementById('status');
-    const startBtn = document.getElementById('startBtn');
-    const pauseBtn = document.getElementById('pauseBtn');
-    const stopBtn = document.getElementById('stopBtn');
-    const placesEl = document.getElementById('places');
+<div id="map"></div>
 
-    // Initialize Map
-    const map = L.map('map').setView([0, 0], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    let polyline = L.polyline([], { color: '#10b981', weight: 5 }).addTo(map);
+<script>
+  let watchId, mediaRecorder, stream;
+  let chunks = [];
+  let tracking = false;
+  let startTime;
+  let totalDistance = 0;
+  let lastCoord = null;
+  let currentFacingMode = 'environment';
 
-    function calcDistance(lat1, lon1, lat2, lon2) {
-      const R = 6371;
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(dLat / 2)**2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2)**2;
-      return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    }
+  const map = L.map('map').setView([0, 0], 15);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+  let path = L.polyline([], {color: '#3b82f6', weight: 6}).addTo(map);
 
-    async function reverseGeocode(lat, lon) {
-      const now = Date.now();
-      // Only call API if 2 minutes have passed since last call to avoid "Session Expired/Blocked"
-      if (now - lastGeocodeTime < 120000) return; 
-
-      try {
-        lastGeocodeTime = now;
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
-        const data = await res.json();
-        if (data.display_name) {
-          const entry = document.createElement('div');
-          entry.innerHTML = `• ${new Date().toLocaleTimeString()}: ${data.display_name.split(',').slice(0,3).join(',')}`;
-          placesEl.prepend(entry);
-        }
-      } catch (e) { console.log("Geocode throttled"); }
-    }
-
-    function startTracking() {
-      tracking = true;
-      paused = false;
-      statusEl.textContent = "Live Tracking";
-      statusEl.style.color = "green";
-      
-      const options = {
-        enableHighAccuracy: true,
-        maximumAge: 0, // Force fresh data
-        timeout: Infinity // Never give up on the signal
-      };
-
-      watchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          if (paused) return;
-
-          const { latitude, longitude, speed } = pos.coords;
-          const currentSpeed = speed ? (speed * 3.6) : 0;
-          
-          if (lastLat && lastLon) {
-            const dist = calcDistance(lastLat, lastLon, latitude, longitude);
-            if (dist > 0.002) { // Only log if moved > 2 meters
-              totalDistance += dist;
-              distanceEl.textContent = totalDistance.toFixed(2);
-              reverseGeocode(latitude, longitude);
-            }
-          }
-
-          lastLat = latitude; lastLon = longitude;
-          speedEl.textContent = currentSpeed.toFixed(1);
-          
-          // Data Logging
-          speedArray.push(currentSpeed.toFixed(1));
-          timeArray.push(new Date().toLocaleTimeString());
-          coordsArray.push([latitude, longitude]);
-          
-          polyline.addLatLng([latitude, longitude]);
-          map.panTo([latitude, longitude]);
-        },
-        (err) => {
-          statusEl.textContent = "Signal Lost (Searching...)";
-          statusEl.style.color = "orange";
-        }, 
-        options
-      );
-    }
-
-    startBtn.onclick = () => {
-      startBtn.disabled = true;
-      pauseBtn.disabled = false;
-      stopBtn.disabled = false;
-      startTracking();
-    };
-
-    pauseBtn.onclick = () => {
-      paused = !paused;
-      pauseBtn.textContent = paused ? "Resume" : "Pause";
-      statusEl.textContent = paused ? "Paused" : "Live Tracking";
-      statusEl.style.color = paused ? "orange" : "green";
-    };
-
-    stopBtn.onclick = () => {
-      navigator.geolocation.clearWatch(watchId);
-      tracking = false;
-      statusEl.textContent = "Finished";
-      statusEl.style.color = "red";
-      startBtn.disabled = false;
-      stopBtn.disabled = true;
-      drawChart();
-    };
-
-    function drawChart() {
-      new Chart(document.getElementById('chart'), {
-        type: 'line',
-        data: {
-          labels: timeArray,
-          datasets: [{
-            label: 'Speed (km/h)',
-            data: speedArray,
-            borderColor: '#10b981',
-            tension: 0.3
-          }]
-        }
+  // --- Camera Logic ---
+  async function initCamera(facingMode) {
+    if (stream) stream.getTracks().forEach(track => track.stop());
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: facingMode },
+        audio: true
       });
+      document.getElementById('preview').srcObject = stream;
+      currentFacingMode = facingMode;
+    } catch (err) {
+      alert("Camera access denied or not found.");
     }
+  }
 
-    document.getElementById('exportBtn').onclick = () => {
-      let csv = "Time,Speed(kmh)\n";
-      timeArray.forEach((t, i) => csv += `${t},${speedArray[i]}\n`);
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.setAttribute('href', url);
-      a.setAttribute('download', 'trip_data.csv');
-      a.click();
+  function switchCamera(mode) {
+    initCamera(mode);
+  }
+
+  // --- Tracking Logic ---
+  function startJourney() {
+    tracking = true;
+    startTime = Date.now();
+    chunks = [];
+    
+    // Start Recording
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => chunks.push(e.data);
+    mediaRecorder.onstop = saveVideo;
+    mediaRecorder.start();
+
+    // Start GPS
+    watchId = navigator.geolocation.watchPosition(pos => {
+      const { latitude, longitude, speed } = pos.coords;
+      const currentSpeed = speed ? (speed * 3.6).toFixed(1) : 0;
+      document.getElementById('speed').textContent = currentSpeed;
+
+      if (lastCoord) {
+        const d = calcDist(lastCoord.lat, lastCoord.lng, latitude, longitude);
+        totalDistance += d;
+        document.getElementById('distance').textContent = totalDistance.toFixed(2);
+      }
+      lastCoord = {lat: latitude, lng: longitude};
+      path.addLatLng([latitude, longitude]);
+      map.panTo([latitude, longitude]);
+    }, null, { enableHighAccuracy: true });
+
+    // Timer logic
+    setInterval(() => {
+      if(!tracking) return;
+      const diff = Math.floor((Date.now() - startTime) / 1000);
+      const m = Math.floor(diff/60).toString().padStart(2,'0');
+      const s = (diff%60).toString().padStart(2,'0');
+      document.getElementById('timer').textContent = `${m}:${s}`;
+    }, 1000);
+  }
+
+  function stopJourney() {
+    tracking = false;
+    navigator.geolocation.clearWatch(watchId);
+    mediaRecorder.stop();
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('stopBtn').disabled = true;
+  }
+
+  function saveVideo() {
+    const blob = new Blob(chunks, { type: 'video/mp4' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Journey_${new Date().getTime()}.mp4`;
+    a.click();
+  }
+
+  function calcDist(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2-lat1) * Math.PI/180;
+    const dLon = (lon2-lon1) * Math.PI/180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+    return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
+  // --- Sharing Logic ---
+  document.getElementById('shareBtn').onclick = () => {
+    // We encode the current journey data into the URL so someone opening it sees the stats
+    const journeyData = {
+      d: totalDistance.toFixed(2),
+      s: document.getElementById('speed').textContent,
+      t: document.getElementById('timer').textContent,
+      loc: lastCoord
     };
-  </script>
+    const encodedData = btoa(JSON.stringify(journeyData));
+    const shareUrl = `${window.location.origin}${window.location.pathname}?data=${encodedData}`;
+    
+    navigator.clipboard.writeText(shareUrl);
+    alert("Journey link copied to clipboard! Send this to a friend.");
+  };
+
+  // Check if opening a shared link
+  window.onload = () => {
+    initCamera('environment');
+    const params = new URLSearchParams(window.location.search);
+    if(params.has('data')) {
+      const data = JSON.parse(atob(params.get('data')));
+      alert(`Viewing Shared Journey:\nDistance: ${data.d}km\nTime: ${data.t}`);
+      if(data.loc) map.setView([data.loc.lat, data.loc.lng], 15);
+    }
+  };
+
+  document.getElementById('startBtn').onclick = () => {
+    startJourney();
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('stopBtn').disabled = false;
+  };
+
+  document.getElementById('stopBtn').onclick = stopJourney;
+
+</script>
 </body>
 </html>
