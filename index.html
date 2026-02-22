@@ -3,51 +3,48 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Live GeoCam Tracker</title>
+  <title>Live GeoCam Tracker + Video</title>
   <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     :root { --primary: #2563eb; --rec: #ef4444; --bg: #f8fafc; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: var(--bg); color: #1e293b; }
-    .container { max-width: 600px; margin: auto; padding: 15px; }
-    header { background: #1e293b; color: white; padding: 15px; text-align: center; border-radius: 0 0 15px 15px; margin-bottom: 15px; }
-    
-    #videoArea { background: #000; border-radius: 12px; overflow: hidden; display: none; margin-bottom: 10px; position: relative; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); }
-    video { width: 100%; display: block; }
-    .rec-dot { position: absolute; top: 15px; right: 15px; height: 12px; width: 12px; background: red; border-radius: 50%; animation: blink 1s infinite; border: 2px solid white; }
-    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-    
-    .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
-    .card { background: white; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .card span { font-size: 0.8em; color: #64748b; text-transform: uppercase; font-weight: bold; }
-    .card b { font-size: 1.5em; color: var(--primary); display: block; margin-top: 5px; }
-    
-    .controls { display: flex; flex-direction: column; gap: 8px; }
-    button { padding: 14px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; color: white; font-size: 1em; transition: transform 0.1s; }
-    button:active { transform: scale(0.98); }
-    .btn-start { background: #059669; }
-    .btn-cam { background: #7c3aed; }
-    .btn-stop { background: #dc2626; }
-    .btn-share { background: #334155; }
-    
-    #map { height: 350px; border-radius: 15px; margin-top: 15px; border: 2px solid #e2e8f0; box-shadow: inset 0 2px 4px 0 rgba(0,0,0,0.06); }
-    .viewer-tag { background: #2563eb; color: white; padding: 5px 10px; border-radius: 20px; font-size: 0.8em; display: inline-block; margin-bottom: 10px; }
+    body { font-family: system-ui, sans-serif; margin:0; background:var(--bg); color:#1e293b; }
+    .container { max-width: 600px; margin:auto; padding:15px; }
+    header { background:#1e293b; color:white; padding:15px; text-align:center; border-radius:0 0 15px 15px; margin-bottom:15px; }
+    #videoArea { background:#000; border-radius:12px; overflow:hidden; margin-bottom:10px; position:relative; box-shadow:0 10px 15px -3px rgba(0,0,0,0.2); }
+    video { width:100%; display:block; }
+    .rec-dot { position:absolute; top:15px; right:15px; height:12px; width:12px; background:red; border-radius:50%; animation:blink 1s infinite; border:2px solid white; }
+    @keyframes blink { 0%,100% {opacity:1;} 50% {opacity:0;} }
+    .stats-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:15px; }
+    .card { background:white; padding:15px; border-radius:12px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+    .card span { font-size:0.8em; color:#64748b; text-transform:uppercase; font-weight:bold; }
+    .card b { font-size:1.5em; color:var(--primary); display:block; margin-top:5px; }
+    .controls { display:flex; flex-direction:column; gap:8px; }
+    button { padding:14px; border:none; border-radius:10px; font-weight:bold; cursor:pointer; color:white; font-size:1em; transition:transform 0.1s; }
+    button:active { transform:scale(0.98); }
+    .btn-start { background:#059669; }
+    .btn-cam { background:#7c3aed; }
+    .btn-stop { background:#dc2626; }
+    .btn-share { background:#334155; }
+    #map { height:350px; border-radius:15px; margin-top:15px; border:2px solid #e2e8f0; box-shadow:inset 0 2px 4px 0 rgba(0,0,0,0.06); }
+    .viewer-tag { background:#2563eb; color:white; padding:5px 10px; border-radius:20px; font-size:0.8em; display:inline-block; margin-bottom:10px; }
+    #remoteVideo { width:100%; background:#111; border-radius:8px; }
   </style>
 </head>
 <body>
-
 <header>
-  <h1 id="mainTitle">GeoTracker Live</h1>
+  <h1 id="mainTitle">GeoTracker Live + Video</h1>
 </header>
-
 <div class="container">
-  <div id="viewerIndicator" style="display:none;" class="viewer-tag">📡 Viewing Friend's Live Journey</div>
-  
-  <div id="videoArea">
+  <div id="viewerIndicator" style="display:none;" class="viewer-tag">📡 Viewing Friend's Live Journey & Camera</div>
+
+  <div id="videoArea" style="display:none;">
     <video id="preview" autoplay muted playsinline></video>
     <div class="rec-dot"></div>
   </div>
+
+  <video id="remoteVideo" autoplay playsinline style="display:none; margin-bottom:10px;"></video>
 
   <div class="stats-grid">
     <div class="card"><span>Speed</span><b id="speed">0</b><small>km/h</small></div>
@@ -58,7 +55,7 @@
 
   <div id="operatorUI" class="controls">
     <button class="btn-start" id="gpsBtn" onclick="toggleGPS()">🛰️ Start Live Journey</button>
-    <button class="btn-cam" id="camBtn" onclick="toggleCamera()">📷 Record Video (Optional)</button>
+    <button class="btn-cam" id="camBtn" onclick="toggleCameraAndStream()">🎥 Start Camera + Live Stream</button>
     <button class="btn-stop" onclick="stopAll()">🛑 Stop Everything</button>
     <button class="btn-share" onclick="copyLiveLink()">🔗 Copy Shareable Live Link</button>
   </div>
@@ -67,139 +64,214 @@
 </div>
 
 <script>
-  // YOUR ABLY KEY APPLIED
-  const ABLY_KEY = 'tQeHYQ.ZsPdVg:oHH2d2amT9WrziD8QOrjuZppajh6ijgZZiQ-GsgysUU'; 
-  
-  let ably, channel, watchId, stream, mediaRecorder;
-  let isTracking = false, isRecording = false;
+  const ABLY_KEY = 'tQeHYQ.ZsPdVg:oHH2d2amT9WrziD8QOrjuZppajh6ijgZZiQ-GsgysUU';
+
+  let ably, channel, watchId, localStream, mediaRecorder, peerConnection;
+  let isTracking = false, isStreaming = false;
   let startTime, totalDist = 0, lastPos = null;
   let chunks = [];
-  
-  // Random Unique ID for this specific session
-  const tripId = "trip_" + Math.random().toString(36).substr(2, 9);
 
+  const tripId = "trip_" + Math.random().toString(36).substr(2, 9);
   const map = L.map('map').setView([0,0], 2);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
   let path = L.polyline([], {color: '#2563eb', weight: 6, opacity: 0.8}).addTo(map);
   let marker = L.circleMarker([0,0], {radius: 8, color: 'white', fillColor: '#2563eb', fillOpacity: 1, weight: 3}).addTo(map);
 
-  // Initialize Ably
-  try {
-      ably = new Ably.Realtime(ABLY_KEY);
-      channel = ably.channels.get(tripId);
-  } catch(e) { console.error("Ably Auth Failed"); }
+  ably = new Ably.Realtime(ABLY_KEY);
+  channel = ably.channels.get(tripId);
 
-  // --- BROADCASTER FUNCTIONS ---
+  // WebRTC config
+  const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+  // --- BROADCASTER ---
+  async function toggleCameraAndStream() {
+    if (isStreaming) return;
+    try {
+      const mode = confirm("Use back camera? (Cancel = selfie)") ? 'environment' : 'user';
+      localStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: mode },
+        audio: true
+      });
+
+      document.getElementById('videoArea').style.display = 'block';
+      document.getElementById('preview').srcObject = localStream;
+
+      // Optional local recording
+      mediaRecorder = new MediaRecorder(localStream);
+      mediaRecorder.ondataavailable = e => chunks.push(e.data);
+      mediaRecorder.start(2000); // chunks every ~2s — but we won't send them
+
+      isStreaming = true;
+      document.getElementById('camBtn').innerText = "🎥 Live Streaming...";
+
+      // Prepare WebRTC only if broadcaster
+      if (!new URLSearchParams(window.location.search).has('trip')) {
+        setupBroadcasterWebRTC();
+      }
+    } catch (e) {
+      alert("Camera/microphone permission needed\n" + e.message);
+    }
+  }
+
+  function setupBroadcasterWebRTC() {
+    peerConnection = new RTCPeerConnection(rtcConfig);
+
+    localStream.getTracks().forEach(track => {
+      peerConnection.addTrack(track, localStream);
+    });
+
+    // Send offer when viewer joins (via presence or manual trigger)
+    channel.presence.enter({ joined: true });
+
+    peerConnection.onnegotiationneeded = async () => {
+      try {
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        channel.publish('offer', peerConnection.localDescription);
+      } catch (e) { console.error("Offer failed", e); }
+    };
+
+    peerConnection.onicecandidate = e => {
+      if (e.candidate) {
+        channel.publish('candidate', e.candidate);
+      }
+    };
+  }
+
+  // --- VIEWER SIDE ---
+  function setupViewerWebRTC() {
+    peerConnection = new RTCPeerConnection(rtcConfig);
+
+    peerConnection.ontrack = e => {
+      const remoteVideo = document.getElementById('remoteVideo');
+      remoteVideo.srcObject = e.streams[0];
+      remoteVideo.style.display = 'block';
+      document.getElementById('status').innerText = "Live Video Connected";
+    };
+
+    peerConnection.onicecandidate = e => {
+      if (e.candidate) channel.publish('candidate', e.candidate);
+    };
+
+    // Wait for offer from broadcaster
+    channel.subscribe('offer', async msg => {
+      const desc = new RTCSessionDescription(msg.data);
+      await peerConnection.setRemoteDescription(desc);
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      channel.publish('answer', peerConnection.localDescription);
+    });
+
+    channel.subscribe('candidate', async msg => {
+      try {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(msg.data));
+      } catch (e) { console.warn("ICE candidate error", e); }
+    });
+  }
+
+  // --- COMMON ---
   function toggleGPS() {
-    if(isTracking) return;
+    if (isTracking) return;
     isTracking = true;
     startTime = Date.now();
     document.getElementById('status').innerText = "Broadcasting";
     document.getElementById('status').style.color = "#059669";
-    
+
     watchId = navigator.geolocation.watchPosition(pos => {
       const { latitude, longitude, speed } = pos.coords;
       const s = speed ? (speed * 3.6).toFixed(1) : 0;
-      
-      if(lastPos) {
+
+      if (lastPos) {
         totalDist += calcDist(lastPos.lat, lastPos.lng, latitude, longitude);
       }
-      lastPos = {lat: latitude, lng: longitude};
+      lastPos = { lat: latitude, lng: longitude };
 
-      const currentTime = document.getElementById('timer').innerText;
+      const t = document.getElementById('timer').innerText;
       updateUI(s, totalDist.toFixed(2), latitude, longitude);
 
-      // SEND DATA TO ABLY
-      if(channel) {
-          channel.publish('update', { s, d: totalDist.toFixed(2), lat: latitude, lng: longitude, t: currentTime });
-      }
-    }, (err) => {
+      channel.publish('update', { s, d: totalDist.toFixed(2), lat: latitude, lng: longitude, t });
+    }, err => {
       document.getElementById('status').innerText = "GPS Error";
-    }, {enableHighAccuracy: true});
+    }, { enableHighAccuracy: true });
 
     setInterval(() => {
-      if(!isTracking) return;
-      const sec = Math.floor((Date.now() - startTime)/1000);
+      if (!isTracking) return;
+      const sec = Math.floor((Date.now() - startTime) / 1000);
       document.getElementById('timer').innerText = new Date(sec * 1000).toISOString().substr(14, 5);
     }, 1000);
-  }
-
-  async function toggleCamera() {
-    try {
-        const mode = confirm("Use Back Camera? (Cancel for Selfie)") ? 'environment' : 'user';
-        stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: mode}, audio: true});
-        document.getElementById('videoArea').style.display = 'block';
-        document.getElementById('preview').srcObject = stream;
-        
-        mediaRecorder = new MediaRecorder(stream);
-        mediaRecorder.ondataavailable = e => chunks.push(e.data);
-        mediaRecorder.onstop = () => {
-          const blob = new Blob(chunks, {type: 'video/mp4'});
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          a.download = `Journey_${Date.now()}.mp4`;
-          a.click();
-        };
-        mediaRecorder.start();
-        isRecording = true;
-        document.getElementById('camBtn').innerText = "🎥 Recording Live...";
-    } catch(e) { alert("Camera Permission Required"); }
-  }
-
-  function stopAll() {
-    isTracking = false;
-    navigator.geolocation.clearWatch(watchId);
-    if(isRecording) {
-        mediaRecorder.stop();
-        stream.getTracks().forEach(t => t.stop());
-    }
-    document.getElementById('status').innerText = "Stopped";
-    if(channel) channel.publish('status', { msg: 'Trip has ended' });
   }
 
   function updateUI(s, d, lat, lng) {
     document.getElementById('speed').innerText = s;
     document.getElementById('distance').innerText = d;
-    const newPos = [lat, lng];
-    path.addLatLng(newPos);
-    marker.setLatLng(newPos);
-    map.setView(newPos, 16);
+    const pos = [lat, lng];
+    path.addLatLng(pos);
+    marker.setLatLng(pos);
+    map.setView(pos, 16);
   }
 
   function calcDist(lat1, lon1, lat2, lon2) {
     const R = 6371;
-    const dLat = (lat2-lat1)*Math.PI/180;
-    const dLon = (lon2-lon1)*Math.PI/180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
-    return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2)**2;
+    return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function stopAll() {
+    isTracking = isStreaming = false;
+    if (watchId) navigator.geolocation.clearWatch(watchId);
+    if (localStream) localStream.getTracks().forEach(t => t.stop());
+    if (mediaRecorder) mediaRecorder.stop();
+    if (peerConnection) peerConnection.close();
+    channel.publish('status', { msg: 'Trip has ended' });
+    document.getElementById('status').innerText = "Stopped";
   }
 
   function copyLiveLink() {
     const link = `${window.location.href.split('?')[0]}?trip=${tripId}`;
     navigator.clipboard.writeText(link);
-    alert("Live Link Copied! Send it to your friend now.");
+    alert("Share this link!\nFriends will see live map + video.");
   }
 
-  // --- VIEWER MODE DETECTION ---
+  // Init logic
   window.onload = () => {
     const params = new URLSearchParams(window.location.search);
-    if(params.has('trip')) {
-      const remoteTripId = params.get('trip');
+    if (params.has('trip')) {
+      // Viewer mode
+      const remoteTrip = params.get('trip');
+      channel = ably.channels.get(remoteTrip);
       document.getElementById('operatorUI').style.display = 'none';
       document.getElementById('viewerIndicator').style.display = 'block';
       document.getElementById('mainTitle').innerText = "Live Viewer";
-      
-      channel = ably.channels.get(remoteTripId);
-      channel.subscribe('update', (msg) => {
-          const data = msg.data;
-          updateUI(data.s, data.d, data.lat, data.lng);
-          document.getElementById('timer').innerText = data.t;
-          document.getElementById('status').innerText = "Connected";
+      setupViewerWebRTC();
+
+      channel.subscribe('update', msg => {
+        const data = msg.data;
+        updateUI(data.s, data.d, data.lat, data.lng);
+        document.getElementById('timer').innerText = data.t;
       });
-      channel.subscribe('status', (msg) => {
-          document.getElementById('status').innerText = msg.data.msg;
+
+      channel.subscribe('status', msg => {
+        document.getElementById('status').innerText = msg.data.msg;
       });
+    } else {
+      // Broadcaster can also receive own status if wanted
     }
+
+    // Handle incoming signaling from the other side
+    channel.subscribe('answer', async msg => {
+      if (peerConnection && peerConnection.signalingState === 'have-local-offer') {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(msg.data));
+      }
+    });
+
+    channel.subscribe('candidate', async msg => {
+      if (peerConnection) {
+        try { await peerConnection.addIceCandidate(new RTCIceCandidate(msg.data)); }
+        catch (e) {}
+      }
+    });
   };
 </script>
 </body>
