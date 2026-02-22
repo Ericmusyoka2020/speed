@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pro GPS Tracker - All Day Active</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 0; background: #f0fdfa; }
+    header { padding: 15px; background: #134e4a; color: white; text-align: center; }
+    main { padding: 20px; display: flex; flex-direction: column; align-items: center; }
+    .box { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 600px; }
+    .data { font-size: 1.2em; font-weight: bold; margin: 12px 0; color: #0f766e; }
+    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+    button { padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+    #startBtn { background: #10b981; color: white; }
+    #pauseBtn { background: #f59e0b; color: white; }
+    #stopBtn { background: #ef4444; color: white; }
+    button:disabled { background: #d1d5db; cursor: not-allowed; }
+    #map { height: 350px; width: 100%; max-width: 600px; margin: 20px 0; border-radius: 12px; border: 2px solid #134e4a; }
+    #places { width: 100%; max-width: 600px; height: 150px; overflow-y: auto; background: #fff; padding: 10px; border-radius: 8px; font-size: 0.85em; }
+    canvas { max-width: 600px; width: 100%; margin-top: 20px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>GPS Route & Speed Tracker</h1>
+  </header>
+
+  <main>
+    <div class="box">
+      <div class="data">📍 Speed: <span id="speed">0.0</span> km/h</div>
+      <div class="data">📏 Distance: <span id="distance">0.00</span> km</div>
+      <div class="data">📡 Status: <b id="status" style="color: grey;">Idle</b></div>
+      
+      <div class="controls">
+        <button id="startBtn">Start</button>
+        <button id="pauseBtn" disabled>Pause</button>
+        <button id="stopBtn" disabled>Stop & Graph</button>
+        <button id="exportBtn">Export CSV</button>
+      </div>
+    </div>
+
+    <div id="map"></div>
+    <div id="places"><b>Location Log:</b><br></div>
+    <canvas id="chart"></canvas>
+  </main>
+
+  <script>
+    let watchId, tracking = false, paused = false;
+    let coordsArray = [], speedArray = [], timeArray = [], totalDistance = 0;
+    let lastLat = null, lastLon = null;
+    let lastGeocodeTime = 0; // To prevent API spam
+
+    const speedEl = document.getElementById('speed');
+    const distanceEl = document.getElementById('distance');
+    const statusEl = document.getElementById('status');
+    const startBtn = document.getElementById('startBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const placesEl = document.getElementById('places');
+
+    // Initialize Map
+    const map = L.map('map').setView([0, 0], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    let polyline = L.polyline([], { color: '#10b981', weight: 5 }).addTo(map);
+
+    function calcDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2)**2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2)**2;
+      return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    async function reverseGeocode(lat, lon) {
+      const now = Date.now();
+      // Only call API if 2 minutes have passed since last call to avoid "Session Expired/Blocked"
+      if (now - lastGeocodeTime < 120000) return; 
+
+      try {
+        lastGeocodeTime = now;
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+        const data = await res.json();
+        if (data.display_name) {
+          const entry = document.createElement('div');
+          entry.innerHTML = `• ${new Date().toLocaleTimeString()}: ${data.display_name.split(',').slice(0,3).join(',')}`;
+          placesEl.prepend(entry);
+        }
+      } catch (e) { console.log("Geocode throttled"); }
+    }
+
+    function startTracking() {
+      tracking = true;
+      paused = false;
+      statusEl.textContent = "Live Tracking";
+      statusEl.style.color = "green";
+      
+      const options = {
+        enableHighAccuracy: true,
+        maximumAge: 0, // Force fresh data
+        timeout: Infinity // Never give up on the signal
+      };
+
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          if (paused) return;
+
+          const { latitude, longitude, speed } = pos.coords;
+          const currentSpeed = speed ? (speed * 3.6) : 0;
+          
+          if (lastLat && lastLon) {
+            const dist = calcDistance(lastLat, lastLon, latitude, longitude);
+            if (dist > 0.002) { // Only log if moved > 2 meters
+              totalDistance += dist;
+              distanceEl.textContent = totalDistance.toFixed(2);
+              reverseGeocode(latitude, longitude);
+            }
+          }
+
+          lastLat = latitude; lastLon = longitude;
+          speedEl.textContent = currentSpeed.toFixed(1);
+          
+          // Data Logging
+          speedArray.push(currentSpeed.toFixed(1));
+          timeArray.push(new Date().toLocaleTimeString());
+          coordsArray.push([latitude, longitude]);
+          
+          polyline.addLatLng([latitude, longitude]);
+          map.panTo([latitude, longitude]);
+        },
+        (err) => {
+          statusEl.textContent = "Signal Lost (Searching...)";
+          statusEl.style.color = "orange";
+        }, 
+        options
+      );
+    }
+
+    startBtn.onclick = () => {
+      startBtn.disabled = true;
+      pauseBtn.disabled = false;
+      stopBtn.disabled = false;
+      startTracking();
+    };
+
+    pauseBtn.onclick = () => {
+      paused = !paused;
+      pauseBtn.textContent = paused ? "Resume" : "Pause";
+      statusEl.textContent = paused ? "Paused" : "Live Tracking";
+      statusEl.style.color = paused ? "orange" : "green";
+    };
+
+    stopBtn.onclick = () => {
+      navigator.geolocation.clearWatch(watchId);
+      tracking = false;
+      statusEl.textContent = "Finished";
+      statusEl.style.color = "red";
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      drawChart();
+    };
+
+    function drawChart() {
+      new Chart(document.getElementById('chart'), {
+        type: 'line',
+        data: {
+          labels: timeArray,
+          datasets: [{
+            label: 'Speed (km/h)',
+            data: speedArray,
+            borderColor: '#10b981',
+            tension: 0.3
+          }]
+        }
+      });
+    }
+
+    document.getElementById('exportBtn').onclick = () => {
+      let csv = "Time,Speed(kmh)\n";
+      timeArray.forEach((t, i) => csv += `${t},${speedArray[i]}\n`);
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.setAttribute('href', url);
+      a.setAttribute('download', 'trip_data.csv');
+      a.click();
+    };
+  </script>
+</body>
+</html>
