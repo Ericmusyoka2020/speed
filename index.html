@@ -9,14 +9,19 @@
     <meta name="theme-color" content="#0f172a">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background: radial-gradient(circle at top, #1e293b, #0f172a); font-family: 'Inter', sans-serif; overflow-x: hidden; }
+        body { 
+            background: radial-gradient(circle at top, #1e293b, #0f172a); 
+            font-family: 'Inter', sans-serif; 
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
         .bike-animate { animation: drive 3s infinite linear; }
         @keyframes drive { 0% { transform: translateX(-5px); } 50% { transform: translateX(5px); } 100% { transform: translateX(-5px); } }
 
-        /* Mobile-First Slideshow */
+        /* Mobile-Optimized Slideshow */
         .slideshow-container {
-            width: 90vw;
-            max-width: 500px;
+            width: 100%;
+            max-width: 450px;
             aspect-ratio: 4 / 3;
             position: relative;
             overflow: hidden;
@@ -37,10 +42,11 @@
         .progress-bar { height: 4px; background: #22c55e; width: 0%; position: absolute; bottom: 0; transition: width 3.5s linear; }
     </style>
 </head>
-<body class="min-h-screen flex flex-col items-center justify-between text-white p-6 py-12">
+<body class="flex flex-col items-center p-6">
 
-    <div class="w-full flex flex-col items-center">
-        <div class="slideshow-container mb-8">
+    <div class="w-full max-w-md flex flex-col items-center space-y-8 mt-4">
+        
+        <div class="slideshow-container">
             <div class="slide active" style="background-image: url('https://s.alicdn.com/@sc02/kf/Hdfc68ff3fe8d4bdaa9a1ec9146419fcaT.jpg_1200x1200.jpg')"></div>
             <div class="slide" style="background-image: url('https://s.alicdn.com/@sc02/kf/H2ae43f3b25984ddf9d719df94f8d39fah.jpg')"></div>
             <div class="slide" style="background-image: url('http://cardosystems.com/cdn/shop/articles/using-gps-app-motorcycle-handlebars.jpg?v=1704203899')"></div>
@@ -54,21 +60,27 @@
             <div id="p-bar" class="progress-bar"></div>
         </div>
 
-        <div class="bike-animate mb-2">
-            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>
+        <div class="text-center space-y-2">
+            <div class="bike-animate flex justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>
+            </div>
+            <h1 class="text-4xl font-black italic tracking-tighter text-white">CYCLE<span class="text-green-500">STREAM</span></h1>
+            <p class="text-slate-400 text-sm uppercase tracking-widest">Your journey, broadcasted live.</p>
         </div>
-        <h1 class="text-4xl font-black italic tracking-tighter">CYCLE<span class="text-green-500">STREAM</span></h1>
-        <p class="text-slate-400 text-sm uppercase tracking-widest">Broadcast Live</p>
+
+        <div class="w-full space-y-3 px-4">
+            <a href="ind.html" class="block text-center bg-green-500 text-black font-black py-4 px-8 rounded-xl shadow-lg shadow-green-500/30 active:scale-95 transition-transform uppercase tracking-tight">
+                Continue to Ride
+            </a>
+            <button id="installBtn" class="hidden w-full border border-slate-700 bg-slate-800/50 text-white font-bold py-3 px-8 rounded-xl text-xs uppercase tracking-wider">
+                Install App
+            </button>
+        </div>
     </div>
 
-    <div class="w-full max-w-xs space-y-4">
-        <a href="ind.html" class="block text-center bg-green-500 text-black font-black py-4 px-8 rounded-xl shadow-lg shadow-green-500/20 active:scale-95 transition-transform">
-            CONTINUE TO RIDE
-        </a>
-        <button id="installBtn" class="hidden w-full border border-slate-700 bg-slate-800/50 text-white font-bold py-3 px-8 rounded-xl text-sm">
-            INSTALL APP
-        </button>
-    </div>
+    <footer class="mt-auto pt-10 pb-4 text-slate-500 text-[10px] uppercase tracking-widest">
+        &copy; 2026 CycleStream. All Rights Reserved.
+    </footer>
 
     <script>
         // Slideshow Logic
@@ -93,7 +105,7 @@
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             deferredPrompt = e;
-            installBtn.classList.remove('hidden'); // Show button if installable
+            installBtn.classList.remove('hidden');
         });
 
         installBtn.addEventListener('click', async () => {
@@ -105,7 +117,6 @@
             }
         });
 
-        // Register Service Worker
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js');
         }
