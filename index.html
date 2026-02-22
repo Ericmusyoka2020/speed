@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -29,7 +28,6 @@
     .card span { font-size: 0.8em; color: #64748b; text-transform: uppercase; font-weight: bold; }
     .card b { font-size: 1.5em; color: var(--primary); display: block; margin-top: 5px; }
     
-    /* New Viewer List Styling for Driver */
     #viewerListCard { background: #fff; padding: 10px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #e2e8f0; }
     .viewer-chip { display: inline-block; background: #e0e7ff; color: #4338ca; padding: 4px 10px; border-radius: 15px; font-size: 0.75em; margin: 2px; font-weight: bold; }
 
@@ -59,13 +57,13 @@
 
 <header>
   <h1 id="mainTitle" style="margin:0;">GeoTracker Live</h1>
-  <div id="idBadge" class="user-identity">Identifying...</div>
+  <div id="idBadge" class="user-identity">Authenticating...</div>
 </header>
 
 <div class="container" id="reportArea">
   <div id="viewerListCard" style="display:none;">
     <span style="font-size: 0.7em; color: #64748b; font-weight:bold;">LIVE VIEWERS:</span>
-    <div id="viewerNames">No one watching yet</div>
+    <div id="viewerNames">Waiting for viewers...</div>
   </div>
 
   <div id="viewerIndicator" style="display:none;" class="viewer-tag">📡 You are watching this journey</div>
@@ -114,8 +112,13 @@
   const tripId = isViewer ? params.get('trip') : "trip_" + Math.random().toString(36).substr(2, 9);
   const myRole = isViewer ? "viewer" : "driver";
   
-  const myName = prompt("Enter your name:", isViewer ? "Viewer" : "Driver") || "Guest";
-  document.getElementById('idBadge').innerText = `Logged in as: ${myName}`;
+  // MANDATORY NAME ENTRY
+  let myName = "";
+  while (!myName || myName.trim().length === 0) {
+      myName = prompt("Identification Required: Please enter your name to continue.");
+  }
+  myName = myName.trim();
+  document.getElementById('idBadge').innerText = `User: ${myName}`;
 
   // MAP INIT
   const map = L.map('map').setView([0,0], 2);
@@ -123,7 +126,7 @@
   let path = L.polyline([], {color: '#2563eb', weight: 6, opacity: 0.8}).addTo(map);
   let marker = L.circleMarker([0,0], {radius: 8, color: 'white', fillColor: '#2563eb', fillOpacity: 1, weight: 3}).addTo(map);
 
-  // ABLY & PRESENCE (To see who is viewing)
+  // ABLY & PRESENCE
   try {
       ably = new Ably.Realtime({ key: ABLY_KEY, clientId: myName });
       channel = ably.channels.get(tripId);
@@ -153,8 +156,6 @@
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
     const element = document.getElementById('reportArea');
-    
-    // Hide buttons temporarily for clean PDF
     const controls = document.querySelector('.controls');
     controls.style.opacity = '0';
 
@@ -167,7 +168,6 @@
         doc.text(`Journey Report: ${myName}`, 10, 10);
         doc.addImage(imgData, 'PNG', 0, 20, pdfWidth, pdfHeight);
         doc.save(`Journey_${new Date().getTime()}.pdf`);
-        
         controls.style.opacity = '1';
     });
   }
@@ -184,7 +184,7 @@
     const container = document.getElementById('chat-overlay');
     const el = document.createElement('div');
     el.className = `msg ${role}-msg`;
-    el.innerHTML = `<small style="opacity:0.7">${senderName}</small><br>${text}`;
+    el.innerHTML = `<small style="font-weight:bold; opacity:0.8">${senderName}</small><br>${text}`;
     container.appendChild(el);
     setTimeout(() => el.remove(), 8000);
   }
@@ -193,7 +193,7 @@
     if(isTracking) return;
     isTracking = true;
     startTime = Date.now();
-    document.getElementById('status').innerText = "Broadcasting";
+    document.getElementById('status').innerText = "Live Broadcast";
     watchId = navigator.geolocation.watchPosition(pos => {
       const { latitude, longitude, speed } = pos.coords;
       const s = speed ? (speed * 3.6).toFixed(1) : 0;
@@ -226,16 +226,19 @@
         };
         mediaRecorder.start();
         isRecording = true;
-        document.getElementById('camBtn').innerText = "🎥 Recording...";
-    } catch(e) { alert("Camera Error"); }
+        document.getElementById('camBtn').innerText = "🎥 Recording Active";
+    } catch(e) { alert("Camera Access Denied"); }
   }
 
   function stopAll() {
     isTracking = false;
     navigator.geolocation.clearWatch(watchId);
-    if(isRecording && mediaRecorder.state !== "inactive") { mediaRecorder.stop(); stream.getTracks().forEach(t => t.stop()); }
-    document.getElementById('status').innerText = "Stopped";
-    if(channel) channel.publish('status', { msg: `${myName} has ended the trip` });
+    if(isRecording && mediaRecorder.state !== "inactive") { 
+        mediaRecorder.stop(); 
+        stream.getTracks().forEach(t => t.stop()); 
+    }
+    document.getElementById('status').innerText = "Ended";
+    if(channel) channel.publish('status', { msg: `${myName} ended the trip` });
   }
 
   function updateUI(s, d, lat, lng) {
@@ -264,11 +267,11 @@
     if(isViewer) {
       document.getElementById('operatorUI').style.display = 'none';
       document.getElementById('viewerIndicator').style.display = 'block';
-      document.getElementById('mainTitle').innerText = "Live Viewer";
+      document.getElementById('mainTitle').innerText = "Viewing Journey";
       channel.subscribe('update', (msg) => {
           updateUI(msg.data.s, msg.data.d, msg.data.lat, msg.data.lng);
           document.getElementById('timer').innerText = msg.data.t;
-          document.getElementById('status').innerText = "Connected";
+          document.getElementById('status').innerText = "Live";
       });
       channel.subscribe('status', (msg) => {
           document.getElementById('status').innerText = msg.data.msg;
