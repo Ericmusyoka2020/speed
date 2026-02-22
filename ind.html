@@ -101,6 +101,7 @@
   let startTime, totalDist = 0, lastPos = null;
   let chunks = [];
   let tripLog = []; 
+  let hasSetInitialView = false;
 
   const params = new URLSearchParams(window.location.search);
   const isViewer = params.has('trip');
@@ -114,7 +115,8 @@
   myName = myName.trim();
   document.getElementById('idBadge').innerText = `User: ${myName}`;
 
-  const map = L.map('map').setView([0,0], 2);
+  // UPDATED: Starting zoom 14 (shows city/place names)
+  const map = L.map('map').setView([0,0], 14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
   let path = L.polyline([], {color: '#2563eb', weight: 6, opacity: 0.8}).addTo(map);
   let marker = L.circleMarker([0,0], {radius: 8, color: 'white', fillColor: '#2563eb', fillOpacity: 1, weight: 3}).addTo(map);
@@ -180,27 +182,21 @@
     document.getElementById('status').innerText = "Live Broadcast";
     
     watchId = navigator.geolocation.watchPosition(pos => {
-      // 1. FILTER: Ignore low accuracy updates (avoids table jitter)
       if (pos.coords.accuracy > 30) return; 
 
       const { latitude, longitude, speed } = pos.coords;
-      
-      // 2. FILTER: Calc speed manually if hardware speed is null or shaky
       let s = speed ? (speed * 3.6) : 0;
       
       let moveStep = 0;
       if(lastPos) {
           moveStep = calcDist(lastPos.lat, lastPos.lng, latitude, longitude);
-          // 3. FILTER: Only add distance if moving > 2 meters (prevents drift)
           if (moveStep > 0.002) { 
               totalDist += moveStep;
           } else {
-              // If moving less than 2 meters, force speed to 0
               s = 0;
           }
       }
       
-      // Final display formatting
       const displaySpeed = s < 0.8 ? "0.0" : s.toFixed(1);
       lastPos = {lat: latitude, lng: longitude};
       const currentTime = document.getElementById('timer').innerText;
@@ -224,6 +220,22 @@
       const sec = Math.floor((Date.now() - startTime)/1000);
       document.getElementById('timer').innerText = new Date(sec * 1000).toISOString().substr(14, 5);
     }, 1000);
+  }
+
+  function updateUI(s, d, lat, lng) {
+    document.getElementById('speed').innerText = s;
+    document.getElementById('distance').innerText = d;
+    const newPos = [lat, lng];
+    path.addLatLng(newPos);
+    marker.setLatLng(newPos);
+    
+    // UPDATED: Initial set to zoom 14, then just pan (don't force zoom every update)
+    if (!hasSetInitialView) {
+        map.setView(newPos, 14); 
+        hasSetInitialView = true;
+    } else {
+        map.panTo(newPos);
+    }
   }
 
   function sendComment() {
@@ -271,15 +283,6 @@
     }
     document.getElementById('status').innerText = "Ended";
     if(channel) channel.publish('status', { msg: `${myName} ended the trip` });
-  }
-
-  function updateUI(s, d, lat, lng) {
-    document.getElementById('speed').innerText = s;
-    document.getElementById('distance').innerText = d;
-    const newPos = [lat, lng];
-    path.addLatLng(newPos);
-    marker.setLatLng(newPos);
-    map.setView(newPos, 16);
   }
 
   function calcDist(lat1, lon1, lat2, lon2) {
