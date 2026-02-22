@@ -1,312 +1,191 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dual Driver Live Tracker + Chat</title>
+  <title>Dual Driver Live Tracker</title>
   <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    :root { --primary: #2563eb; --rec: #ef4444; --bg: #f8fafc; --driver1: #059669; --driver2: #dc2626; --viewer: #7c3aed; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: var(--bg); color: #1e293b; overflow-x: hidden; }
-    .container { max-width: 600px; margin: auto; padding: 15px; padding-bottom: 140px; }
-    header { background: #1e293b; color: white; padding: 15px; text-align: center; border-radius: 0 0 15px 15px; margin-bottom: 15px; }
-   
-    #videoArea { background: #000; border-radius: 12px; overflow: hidden; display: none; margin-bottom: 10px; position: relative; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); }
-    video { width: 100%; display: block; }
-    .rec-dot { position: absolute; top: 15px; right: 15px; height: 12px; width: 12px; background: red; border-radius: 50%; animation: blink 1s infinite; border: 2px solid white; }
-    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-   
-    .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
-    .card { background: white; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .card span { font-size: 0.8em; color: #64748b; text-transform: uppercase; font-weight: bold; }
-    .card b { font-size: 1.5em; color: var(--primary); display: block; margin-top: 5px; }
-   
-    .controls { display: flex; flex-direction: column; gap: 8px; }
-    button { padding: 14px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; color: white; font-size: 1em; transition: transform 0.1s; }
-    button:active { transform: scale(0.98); }
-    .btn-start { background: #059669; }
-    .btn-cam { background: #7c3aed; }
-    .btn-stop { background: #dc2626; }
-    .btn-share { background: #334155; }
-    .btn-request { background: #f59e0b; }
-    .btn-accept { background: #10b981; }
-   
-    #map { height: 250px; border-radius: 15px; margin-top: 15px; border: 2px solid #e2e8f0; }
-    .viewer-tag, .driver-tag { background: var(--primary); color: white; padding: 5px 10px; border-radius: 20px; font-size: 0.8em; display: inline-block; margin-bottom: 10px; }
-    .driver-tag.driver1 { background: var(--driver1); }
-    .driver-tag.driver2 { background: var(--driver2); }
-
-    /* Dual Driver Legend */
-    .legend { display: flex; gap: 15px; margin-bottom: 10px; font-size: 0.9em; }
-    .legend-item { display: flex; align-items: center; gap: 5px; }
-    .legend-color { width: 12px; height: 12px; border-radius: 50%; }
-
-    /* --- PERSISTENT CHAT OVERLAY --- */
-    #chat-overlay { position: fixed; bottom: 100px; left: 15px; right: 15px; pointer-events: none; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
-    .msg { background: white; color: #1e293b; padding: 12px 18px; border-radius: 18px; width: fit-content; max-width: 80%; box-shadow: 0 4px 15px rgba(0,0,0,0.2); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: auto; position: relative; }
-    .msg.viewer-msg { border-left: 6px solid var(--viewer); align-self: flex-start; border-bottom-left-radius: 2px; }
-    .msg.driver1-msg { border-right: 6px solid var(--driver1); align-self: flex-end; border-bottom-right-radius: 2px; text-align: right; }
-    .msg.driver2-msg { border-left: 6px solid var(--driver2); align-self: flex-start; border-bottom-left-radius: 2px; }
-    @keyframes popIn { from { opacity: 0; transform: scale(0.8) translateY(20px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    :root { --primary: #2563eb; --driver1: #ef4444; --driver2: #059669; --bg: #f8fafc; }
+    body { font-family: sans-serif; margin: 0; background: var(--bg); overflow-x: hidden; }
+    header { background: #1e293b; color: white; padding: 10px; text-align: center; font-size: 0.8em; }
     
-    .chat-input-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px; display: flex; gap: 8px; box-shadow: 0 -4px 15px rgba(0,0,0,0.08); z-index: 1001; align-items: center; }
-    .chat-input-bar input { flex: 1; padding: 12px 15px; border: 2px solid #f1f5f9; background: #f8fafc; border-radius: 25px; outline: none; font-size: 16px; }
-    .chat-input-bar button { padding: 0 15px; border-radius: 25px; height: 45px; font-size: 0.9em; }
-    .btn-send { background: var(--primary); flex: 0.3; }
-    .btn-clear { background: #64748b; flex: 0.2; font-size: 0.8em !important; padding: 0 10px !important; }
+    .setup-screen { position: fixed; inset: 0; background: white; z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+    input[type="text"] { padding: 12px; width: 80%; border: 2px solid #e2e8f0; border-radius: 8px; margin-bottom: 10px; font-size: 16px; }
+
+    .container { padding: 10px; padding-bottom: 160px; }
+    #map { height: 300px; border-radius: 15px; margin-bottom: 10px; border: 2px solid #ddd; }
+    
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+    .card { background: white; padding: 10px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; }
+    .card b { display: block; font-size: 1.2em; color: var(--primary); }
+
+    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    button { padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: white; transition: 0.2s; }
+    button:active { opacity: 0.8; }
+    
+    .btn-go { background: var(--driver2); grid-column: span 2; }
+    .btn-req { background: #f59e0b; }
+    .btn-view { background: #6366f1; }
+    .btn-stop { background: #ef4444; }
+
+    #chat-overlay { position: fixed; bottom: 80px; left: 10px; right: 10px; pointer-events: none; }
+    .msg { background: white; padding: 8px 12px; border-radius: 10px; margin-top: 5px; width: fit-content; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid var(--primary); pointer-events: auto; }
+  
+    .chat-bar { position: fixed; bottom: 0; left: 0; right: 0; padding: 10px; background: white; display: flex; gap: 5px; border-top: 1px solid #ddd; }
+    .chat-bar input { flex: 1; padding: 10px; border-radius: 5px; border: 1px solid #ccc; }
   </style>
 </head>
 <body>
 
+<div id="setup" class="setup-screen">
+  <h2>Enter Driver Name</h2>
+  <input type="text" id="userName" placeholder="Your Name (e.g. John)">
+  <button class="btn-go" onclick="startApp()" style="width: 85%">Join Journey</button>
+  <p style="font-size: 0.8em; color: #666; margin-top: 20px;">Share the URL with your friend to track together.</p>
+</div>
+
 <header>
-  <h1 id="mainTitle">Dual Driver Tracker</h1>
+  <div id="roleDisplay">Waiting for connection...</div>
 </header>
 
 <div class="container">
-  <div id="roleIndicator" style="display:none;" class="driver-tag"></div>
-  <div id="viewerIndicator" style="display:none;" class="viewer-tag">📡 Viewing Dual Journey</div>
-
-  <!-- Legend for dual drivers -->
-  <div id="legend" class="legend" style="display:none;">
-    <div class="legend-item"><div class="legend-color" style="background:var(--driver1)"></div>Driver 1</div>
-    <div class="legend-item"><div class="legend-color" style="background:var(--driver2)"></div>Driver 2</div>
-  </div>
-
-  <div id="videoArea">
-    <video id="preview" autoplay muted playsinline></video>
-    <div class="rec-dot"></div>
-  </div>
+  <div id="map"></div>
 
   <div class="stats-grid">
-    <div class="card"><span>Speed</span><b id="speed">0</b><small>km/h</small></div>
-    <div class="card"><span>Distance</span><b id="distance">0.00</b><small>km</small></div>
-    <div class="card"><span>Duration</span><b id="timer">00:00</b></div>
-    <div class="card"><span>Status</span><b id="status">Ready</b></div>
+    <div class="card"><span>My Speed</span><b id="mySpeed">0</b></div>
+    <div class="card"><span>Friend Speed</span><b id="friendSpeed">0</b></div>
+    <div class="card" style="grid-column: span 2;"><span>Status</span><b id="status" style="font-size: 0.9em;">Ready</b></div>
   </div>
 
-  <div id="operatorUI" class="controls">
-    <button class="btn-start" id="gpsBtn" onclick="toggleGPS()">🛰️ Start My Journey</button>
-    <button class="btn-request" id="requestBtn" style="display:none;" onclick="requestFriend()">👥 Request Friend Join</button>
-    <button class="btn-accept" id="acceptBtn" style="display:none;" onclick="acceptJoin()">✅ Friend Joined!</button>
-    <button class="btn-cam" id="camBtn" onclick="toggleCamera()">📷 Record Video</button>
-    <button class="btn-stop" onclick="stopAll()">🛑 Stop Everything</button>
-    <button class="btn-share" onclick="copyLiveLink()">🔗 Share Live Link</button>
+  <div class="controls">
+    <button class="btn-go" id="startBtn" onclick="toggleGPS()">🚀 Start My Journey</button>
+    <button class="btn-req" onclick="requestFriend()">🔔 Request Friend Start</button>
+    <button class="btn-view" id="viewToggle" onclick="toggleView()">👀 Viewing: Me</button>
+    <button class="btn-stop" onclick="location.reload()">🔄 Reset</button>
   </div>
-
-  <div id="map"></div>
 </div>
 
 <div id="chat-overlay"></div>
-
-<div class="chat-input-bar">
-  <button class="btn-clear" onclick="clearMessages()">Clear</button>
-  <input type="text" id="chatInput" placeholder="Chat with team..." onkeypress="if(event.key==='Enter') sendComment()">
-  <button class="btn-send" onclick="sendComment()">Send</button>
+<div class="chat-bar">
+  <input type="text" id="chatInput" placeholder="Message friend...">
+  <button class="btn-go" style="padding: 10px 20px;" onclick="sendChat()">Send</button>
 </div>
 
 <script>
   const ABLY_KEY = 'tQeHYQ.ZsPdVg:oHH2d2amT9WrziD8QOrjuZppajh6ijgZZiQ-GsgysUU';
-  let ably, channel, watchId, stream, mediaRecorder;
-  let isTracking = false, isRecording = false, myDriverId = null;
-  let startTime, totalDist = 0, lastPos = null;
-  let chunks = [], friendActive = false;
+  let ably, channel, myName, watchId;
+  let viewFocus = "me"; // "me" or "friend"
+  let markers = {}; 
+  let paths = {};
 
   const params = new URLSearchParams(window.location.search);
-  const isViewer = params.has('trip');
-  const tripId = isViewer ? params.get('trip') : "dual_" + Math.random().toString(36).substr(2, 9);
-  
-  // Map setup with dual markers/paths
+  const tripId = params.get('trip') || "shared_" + Math.random().toString(36).substr(2, 5);
+
   const map = L.map('map').setView([0,0], 2);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-  
-  let paths = { driver1: L.polyline([], {color: '#059669', weight: 5}).addTo(map),
-                driver2: L.polyline([], {color: '#dc2626', weight: 5}).addTo(map) };
-  let markers = { driver1: L.circleMarker([0,0], {radius: 8, color: 'white', fillColor: '#059669', fillOpacity: 1, weight: 3}).addTo(map),
-                  driver2: L.circleMarker([0,0], {radius: 8, color: 'white', fillColor: '#dc2626', fillOpacity: 1, weight: 3}).addTo(map) };
 
-  // Ably setup
-  try {
+  function startApp() {
+    myName = document.getElementById('userName').value.trim();
+    if(!myName) return alert("Enter a name");
+    document.getElementById('setup').style.display = 'none';
+    document.getElementById('roleDisplay').innerText = `ID: ${tripId} | Driver: ${myName}`;
+    
+    initAbly();
+    if(!params.has('trip')) {
+        const link = window.location.href.split('?')[0] + '?trip=' + tripId;
+        console.log("Share this link:", link);
+    }
+  }
+
+  function initAbly() {
     ably = new Ably.Realtime(ABLY_KEY);
     channel = ably.channels.get(tripId);
-    channel.subscribe('comment', (msg) => displayComment(msg.data));
-    channel.subscribe('clear', () => document.getElementById('chat-overlay').innerHTML = '');
-    channel.subscribe('request', handleRequest);
-    channel.subscribe('join-accepted', handleJoin);
-    channel.subscribe('update', handleUpdate);
-    channel.subscribe('status', (msg) => document.getElementById('status').innerText = msg.data.msg);
-  } catch(e) { console.error("Ably failed"); }
 
-  // Friend request flow
-  function requestFriend() {
-    if(!myDriverId) myDriverId = 'driver1';
-    channel.publish('request', { from: myDriverId });
-    document.getElementById('requestBtn').style.display = 'none';
-    document.getElementById('status').innerText = "Waiting for friend...";
-  }
+    // Listen for friend's movement
+    channel.subscribe('pos_update', (msg) => {
+      if(msg.data.name === myName) return;
+      updateFriendUI(msg.data);
+    });
 
-  function handleRequest(msg) {
-    if(myDriverId || isViewer) return;
-    myDriverId = 'driver2';
-    document.getElementById('acceptBtn').style.display = 'block';
-    document.getElementById('status').innerText = "Friend requested you! 🚀";
-    showNotification("Friend wants you to join! Click Accept");
-  }
+    // Listen for start requests
+    channel.subscribe('request_start', (msg) => {
+      if(msg.data.to === myName) {
+        showFlashMsg(`🚨 ${msg.data.from} requested you to start your movement!`);
+      }
+    });
 
-  function acceptJoin() {
-    channel.publish('join-accepted', { driverId: myDriverId });
-    friendActive = true;
-    document.getElementById('acceptBtn').style.display = 'none';
-    document.getElementById('roleIndicator').textContent = `🚗 Driver 2 Active`;
-    document.getElementById('roleIndicator').className = 'driver-tag driver2';
-    document.getElementById('roleIndicator').style.display = 'block';
-    document.getElementById('legend').style.display = 'flex';
-  }
-
-  function handleJoin(msg) {
-    if(myDriverId !== 'driver1') return;
-    friendActive = true;
-    document.getElementById('requestBtn').style.display = 'none';
-    document.getElementById('roleIndicator').textContent = `✅ Friend (Driver 2) Joined`;
-    document.getElementById('roleIndicator').className = 'driver-tag driver1';
-    document.getElementById('roleIndicator').style.display = 'block';
-    document.getElementById('legend').style.display = 'flex';
-    document.getElementById('status').innerText = "Dual tracking active!";
-  }
-
-  // Update handling (works for both drivers + viewers)
-  function handleUpdate(msg) {
-    const { driverId, s, d, lat, lng, t } = msg.data;
-    if(driverId === 'driver1') {
-      paths.driver1.addLatLng([lat, lng]);
-      markers.driver1.setLatLng([lat, lng]);
-    } else {
-      paths.driver2.addLatLng([lat, lng]);
-      markers.driver2.setLatLng([lat, lng]);
-    }
-    map.fitBounds([[paths.driver1.getBounds().getSouthWest(), paths.driver2.getBounds().getNorthEast()]]);
-    if(isViewer) {
-      document.getElementById('speed').innerText = s;
-      document.getElementById('distance').innerText = d;
-      document.getElementById('timer').innerText = t;
-    }
+    // Listen for chat
+    channel.subscribe('chat', (msg) => {
+      showFlashMsg(`<b>${msg.data.from}:</b> ${msg.data.txt}`);
+    });
   }
 
   function toggleGPS() {
-    if(isTracking || !myDriverId) return;
-    isTracking = true;
-    startTime = Date.now();
-    document.getElementById('status').innerText = "My tracking active";
+    const btn = document.getElementById('startBtn');
+    btn.disabled = true;
+    btn.innerText = "🛰️ Journey Live";
+    btn.style.background = "#94a3b8";
+
     watchId = navigator.geolocation.watchPosition(pos => {
       const { latitude, longitude, speed } = pos.coords;
       const s = speed ? (speed * 3.6).toFixed(1) : 0;
-      if(lastPos) totalDist += calcDist(lastPos.lat, lastPos.lng, latitude, longitude);
-      lastPos = {lat: latitude, lng: longitude};
       
-      updateUI(s, totalDist.toFixed(2), latitude, longitude);
-      channel.publish('update', { driverId: myDriverId, s, d: totalDist.toFixed(2), lat: latitude, lng: longitude, t: document.getElementById('timer').innerText });
+      document.getElementById('mySpeed').innerText = s;
+      updateMarker(myName, latitude, longitude, '#2563eb');
+      
+      if(viewFocus === 'me') map.setView([latitude, longitude], 15);
+
+      channel.publish('pos_update', { name: myName, lat: latitude, lng: longitude, speed: s });
     }, null, {enableHighAccuracy: true});
-    
-    setInterval(() => {
-      if(!isTracking) return;
-      const sec = Math.floor((Date.now() - startTime)/1000);
-      document.getElementById('timer').innerText = new Date(sec * 1000).toISOString().substr(14, 5);
-    }, 1000);
   }
 
-  // Chat functions (unchanged but with driver IDs)
-  function sendComment() {
+  function updateFriendUI(data) {
+    document.getElementById('friendSpeed').innerText = data.speed;
+    updateMarker(data.name, data.lat, data.lng, '#ef4444');
+    
+    if(viewFocus === 'friend') {
+        map.setView([data.lat, data.lng], 15);
+    }
+  }
+
+  function updateMarker(name, lat, lng, color) {
+    if(!markers[name]) {
+      markers[name] = L.circleMarker([lat, lng], {radius: 10, color: 'white', fillColor: color, fillOpacity: 1, weight: 3}).addTo(map).bindPopup(name);
+      paths[name] = L.polyline([], {color: color, weight: 4}).addTo(map);
+    }
+    const newPos = [lat, lng];
+    markers[name].setLatLng(newPos);
+    paths[name].addLatLng(newPos);
+  }
+
+  function toggleView() {
+    viewFocus = (viewFocus === 'me') ? 'friend' : 'me';
+    document.getElementById('viewToggle').innerText = `👀 Viewing: ${viewFocus.toUpperCase()}`;
+  }
+
+  function requestFriend() {
+    channel.publish('request_start', { from: myName, to: 'friend' });
+    showFlashMsg("Sent request to friend!");
+  }
+
+  function sendChat() {
     const input = document.getElementById('chatInput');
-    const text = input.value.trim();
-    if(!text || !myDriverId) return;
-    channel.publish('comment', { driverId: myDriverId, role: myDriverId, text });
+    if(!input.value) return;
+    channel.publish('chat', { from: myName, txt: input.value });
     input.value = '';
   }
 
-  function displayComment(data) {
+  function showFlashMsg(html) {
     const container = document.getElementById('chat-overlay');
-    container.innerHTML = ''; // Clear on new message
-    
     const el = document.createElement('div');
-    el.className = `msg ${data.driverId}-msg`;
-    el.innerHTML = `<strong>${data.driverId.toUpperCase()}:</strong><br>${data.text}`;
-    el.onclick = () => el.remove();
-    
+    el.className = 'msg';
+    el.innerHTML = html;
     container.appendChild(el);
+    setTimeout(() => el.remove(), 5000);
   }
-
-  function clearMessages() {
-    channel.publish('clear', {});
-  }
-
-  async function toggleCamera() {
-    try {
-      const mode = confirm("Use Back Camera?") ? 'environment' : 'user';
-      stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: mode}, audio: true});
-      document.getElementById('videoArea').style.display = 'block';
-      document.getElementById('preview').srcObject = stream;
-      mediaRecorder = new MediaRecorder(stream);
-      mediaRecorder.ondataavailable = e => chunks.push(e.data);
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, {type: 'video/mp4'});
-        const a = document.createElement('a'); 
-        a.href = URL.createObjectURL(blob);
-        a.download = `MyJourney_${myDriverId}.mp4`; 
-        a.click();
-      };
-      mediaRecorder.start();
-      isRecording = true;
-      document.getElementById('camBtn').innerText = "🎥 Recording...";
-    } catch(e) { alert("Camera Error"); }
-  }
-
-  function stopAll() {
-    isTracking = false;
-    navigator.geolocation.clearWatch(watchId);
-    if(isRecording) { mediaRecorder.stop(); stream.getTracks().forEach(t => t.stop()); }
-    document.getElementById('status').innerText = "Stopped";
-    channel.publish('status', { msg: `${myDriverId} stopped` });
-  }
-
-  function updateUI(s, d, lat, lng) {
-    document.getElementById('speed').innerText = s;
-    document.getElementById('distance').innerText = d;
-  }
-
-  function calcDist(lat1, lon1, lat2, lon2) {
-    const R = 6371;
-    const dLat = (lat2-lat1)*Math.PI/180;
-    const dLon = (lon2-lon1)*Math.PI/180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
-    return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  }
-
-  function copyLiveLink() {
-    const link = `${window.location.origin}${window.location.pathname}?trip=${tripId}`;
-    navigator.clipboard.writeText(link);
-    alert("Dual Driver Live Link Copied!");
-  }
-
-  function showNotification(msg) {
-    const notif = document.createElement('div');
-    notif.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#10b981;color:white;padding:15px 25px;border-radius:25px;z-index:9999;font-weight:bold;';
-    notif.textContent = msg;
-    document.body.appendChild(notif);
-    setTimeout(() => notif.remove(), 4000);
-  }
-
-  // Viewer mode
-  window.onload = () => {
-    if(isViewer) {
-      document.getElementById('operatorUI').style.display = 'none';
-      document.getElementById('viewerIndicator').style.display = 'block';
-      document.getElementById('mainTitle').innerText = "Dual Driver Viewer";
-      document.getElementById('legend').style.display = 'flex';
-      document.getElementById('status').innerText = "Waiting for drivers...";
-    }
-  };
 </script>
 </body>
 </html>
