@@ -1,55 +1,75 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GeoTracker Pro (Fixed Drift)</title>
+  <title>Live GeoCam Tracker Pro</title>
   <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  
   <style>
     :root { --primary: #2563eb; --rec: #ef4444; --bg: #f8fafc; --driver: #059669; --viewer: #7c3aed; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: var(--bg); color: #1e293b; overflow-x: hidden; }
     .container { max-width: 600px; margin: auto; padding: 15px; padding-bottom: 140px; }
     header { background: #1e293b; color: white; padding: 15px; text-align: center; border-radius: 0 0 15px 15px; margin-bottom: 15px; }
-    .user-identity { font-size: 0.8em; background: rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 20px; display: inline-block; margin-top: 8px; cursor: pointer; }
+    
+    .user-identity { font-size: 0.9em; background: rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 20px; display: inline-block; margin-top: 8px; border: 1px solid rgba(255,255,255,0.2); }
 
-    #videoArea { background: #000; border-radius: 12px; overflow: hidden; display: none; margin-bottom: 10px; position: relative; }
+    #videoArea { background: #000; border-radius: 12px; overflow: hidden; display: none; margin-bottom: 10px; position: relative; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); }
     video { width: 100%; display: block; }
     .rec-dot { position: absolute; top: 15px; right: 15px; height: 12px; width: 12px; background: red; border-radius: 50%; animation: blink 1s infinite; border: 2px solid white; }
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
     
     .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
     .card { background: white; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .card span { font-size: 0.7em; color: #64748b; text-transform: uppercase; font-weight: bold; }
+    .card span { font-size: 0.8em; color: #64748b; text-transform: uppercase; font-weight: bold; }
     .card b { font-size: 1.5em; color: var(--primary); display: block; margin-top: 5px; }
     
+    /* New Viewer List Styling for Driver */
+    #viewerListCard { background: #fff; padding: 10px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #e2e8f0; }
+    .viewer-chip { display: inline-block; background: #e0e7ff; color: #4338ca; padding: 4px 10px; border-radius: 15px; font-size: 0.75em; margin: 2px; font-weight: bold; }
+
     .controls { display: flex; flex-direction: column; gap: 8px; }
-    button { padding: 14px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; color: white; }
+    button { padding: 14px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; color: white; font-size: 1em; transition: transform 0.1s; }
+    button:active { transform: scale(0.98); }
     .btn-start { background: #059669; }
     .btn-cam { background: #7c3aed; }
     .btn-stop { background: #dc2626; }
     .btn-share { background: #334155; }
+    .btn-pdf { background: #0ea5e9; margin-top: 10px; }
     
-    #map { height: 250px; border-radius: 15px; margin-top: 15px; border: 2px solid #e2e8f0; }
+    #map { height: 250px; border-radius: 15px; margin-top: 15px; border: 2px solid #e2e8f0; z-index: 1; }
+    .viewer-tag { background: var(--viewer); color: white; padding: 8px 15px; border-radius: 20px; font-size: 0.8em; display: inline-block; margin-bottom: 10px; width: 100%; box-sizing: border-box; text-align: center;}
+
     #chat-overlay { position: fixed; bottom: 100px; left: 15px; right: 15px; pointer-events: none; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
-    .msg { background: white; padding: 10px 15px; border-radius: 15px; width: fit-content; max-width: 80%; box-shadow: 0 4px 10px rgba(0,0,0,0.1); pointer-events: auto; }
-    .msg.viewer-msg { border-left: 5px solid var(--viewer); align-self: flex-start; }
-    .msg.driver-msg { border-right: 5px solid var(--driver); align-self: flex-end; text-align: right; }
+    .msg { background: white; color: #1e293b; padding: 12px 18px; border-radius: 18px; width: fit-content; max-width: 80%; box-shadow: 0 4px 15px rgba(0,0,0,0.2); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: auto; }
+    .msg.viewer-msg { border-left: 6px solid var(--viewer); align-self: flex-start; border-bottom-left-radius: 2px; }
+    .msg.driver-msg { border-right: 6px solid var(--driver); align-self: flex-end; border-bottom-right-radius: 2px; text-align: right; }
     
-    .chat-input-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px; display: flex; gap: 8px; box-shadow: 0 -4px 10px rgba(0,0,0,0.05); }
-    .chat-input-bar input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 25px; outline: none; }
-    .btn-send { background: var(--primary); width: 70px; border-radius: 25px; }
+    .chat-input-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px; display: flex; gap: 8px; box-shadow: 0 -4px 15px rgba(0,0,0,0.08); z-index: 1001; }
+    .chat-input-bar input { flex: 1; padding: 12px 15px; border: 2px solid #f1f5f9; background: #f8fafc; border-radius: 25px; outline: none; font-size: 16px; }
+    .btn-send { background: var(--primary); width: 80px; }
   </style>
 </head>
 <body>
 
 <header>
-  <h2 id="mainTitle" style="margin:0;">GeoTracker Live</h2>
-  <div id="idBadge" class="user-identity" onclick="changeName()">...</div>
+  <h1 id="mainTitle" style="margin:0;">GeoTracker Live</h1>
+  <div id="idBadge" class="user-identity">Identifying...</div>
 </header>
 
-<div class="container">
+<div class="container" id="reportArea">
+  <div id="viewerListCard" style="display:none;">
+    <span style="font-size: 0.7em; color: #64748b; font-weight:bold;">LIVE VIEWERS:</span>
+    <div id="viewerNames">No one watching yet</div>
+  </div>
+
+  <div id="viewerIndicator" style="display:none;" class="viewer-tag">📡 You are watching this journey</div>
+
   <div id="videoArea">
     <video id="preview" autoplay muted playsinline></video>
     <div class="rec-dot"></div>
@@ -59,120 +79,172 @@
     <div class="card"><span>Speed</span><b id="speed">0</b><small>km/h</small></div>
     <div class="card"><span>Distance</span><b id="distance">0.00</b><small>km</small></div>
     <div class="card"><span>Duration</span><b id="timer">00:00</b></div>
-    <div class="card"><span>Status</span><b id="status" style="font-size:0.9em;">Ready</b></div>
+    <div class="card"><span>Signal</span><b id="status" style="font-size:1em;">Ready</b></div>
   </div>
 
-  <div id="operatorUI" class="controls">
-    <button class="btn-start" id="gpsBtn" onclick="toggleGPS()">🛰️ Start Journey</button>
-    <button class="btn-cam" id="camBtn" onclick="toggleCamera()">📷 Record Video</button>
-    <button class="btn-stop" onclick="stopAll()">🛑 Stop</button>
-    <button class="btn-share" onclick="copyLiveLink()">🔗 Copy Share Link</button>
-  </div>
   <div id="map"></div>
+  
+  <div class="controls">
+    <div id="operatorUI">
+        <button class="btn-start" id="gpsBtn" onclick="toggleGPS()" style="width:100%; margin-bottom:8px;">🛰️ Start Live Journey</button>
+        <button class="btn-cam" id="camBtn" onclick="toggleCamera()" style="width:100%; margin-bottom:8px;">📷 Record Video</button>
+        <button class="btn-stop" onclick="stopAll()" style="width:100%; margin-bottom:8px;">🛑 Stop Everything</button>
+        <button class="btn-share" onclick="copyLiveLink()" style="width:100%; margin-bottom:8px;">🔗 Copy Shareable Live Link</button>
+    </div>
+    <button class="btn-pdf" onclick="generatePDF()">📥 Save Journey as PDF</button>
+  </div>
 </div>
 
 <div id="chat-overlay"></div>
+
 <div class="chat-input-bar">
-  <input type="text" id="chatInput" placeholder="Message..." onkeypress="if(event.key==='Enter') sendComment()">
+  <input type="text" id="chatInput" placeholder="Write a message..." onkeypress="if(event.key==='Enter') sendComment()">
   <button class="btn-send" onclick="sendComment()">Send</button>
 </div>
 
 <script>
   const ABLY_KEY = 'tQeHYQ.ZsPdVg:oHH2d2amT9WrziD8QOrjuZppajh6ijgZZiQ-GsgysUU';
-  let ably, channel, watchId, stream, mediaRecorder, isTracking = false;
-  let startTime, totalDist = 0, lastPos = null, chunks = [];
+  let ably, channel, watchId, stream, mediaRecorder;
+  let isTracking = false, isRecording = false;
+  let startTime, totalDist = 0, lastPos = null;
+  let chunks = [];
 
   const params = new URLSearchParams(window.location.search);
   const isViewer = params.has('trip');
   const tripId = isViewer ? params.get('trip') : "trip_" + Math.random().toString(36).substr(2, 9);
   const myRole = isViewer ? "viewer" : "driver";
   
-  // Identity Management
-  let myName = localStorage.getItem('geoName');
-  if(!myName) {
-      myName = prompt("Enter your name:", isViewer ? "Viewer" : "Driver") || "Guest";
-      localStorage.setItem('geoName', myName);
-  }
-  document.getElementById('idBadge').innerText = `ID: ${myName}`;
+  const myName = prompt("Enter your name:", isViewer ? "Viewer" : "Driver") || "Guest";
+  document.getElementById('idBadge').innerText = `Logged in as: ${myName}`;
 
-  function changeName() {
-      let newName = prompt("Change your name:", myName);
-      if(newName) {
-          myName = newName;
-          localStorage.setItem('geoName', myName);
-          document.getElementById('idBadge').innerText = `ID: ${myName}`;
-      }
-  }
-
-  // Map & Ably
+  // MAP INIT
   const map = L.map('map').setView([0,0], 2);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-  let path = L.polyline([], {color: '#2563eb', weight: 5}).addTo(map);
-  let marker = L.circleMarker([0,0], {radius: 6, color: '#fff', fillColor: '#2563eb', fillOpacity: 1, weight: 2}).addTo(map);
+  let path = L.polyline([], {color: '#2563eb', weight: 6, opacity: 0.8}).addTo(map);
+  let marker = L.circleMarker([0,0], {radius: 8, color: 'white', fillColor: '#2563eb', fillOpacity: 1, weight: 3}).addTo(map);
 
+  // ABLY & PRESENCE (To see who is viewing)
   try {
-      ably = new Ably.Realtime(ABLY_KEY);
+      ably = new Ably.Realtime({ key: ABLY_KEY, clientId: myName });
       channel = ably.channels.get(tripId);
+      
       channel.subscribe('comment', (msg) => displayComment(msg.data.role, msg.data.text, msg.data.name));
-  } catch(e) { console.error(e); }
+
+      // Presence Logic
+      channel.presence.enter({ role: myRole });
+      
+      if(!isViewer) {
+          document.getElementById('viewerListCard').style.display = 'block';
+          channel.presence.subscribe(() => {
+              channel.presence.get((err, members) => {
+                  const viewers = members.filter(m => m.data.role === 'viewer');
+                  const listNode = document.getElementById('viewerNames');
+                  if(viewers.length === 0) {
+                      listNode.innerHTML = "No one watching yet";
+                  } else {
+                      listNode.innerHTML = viewers.map(v => `<span class="viewer-chip">👤 ${v.clientId}</span>`).join('');
+                  }
+              });
+          });
+      }
+  } catch(e) { console.error("Ably Init Failed"); }
+
+  function generatePDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const element = document.getElementById('reportArea');
+    
+    // Hide buttons temporarily for clean PDF
+    const controls = document.querySelector('.controls');
+    controls.style.opacity = '0';
+
+    html2canvas(element, { useCORS: true }).then(canvas => {
+        const imgData = canvas.toDataURL('image/png');
+        const imgProps = doc.getImageProperties(imgData);
+        const pdfWidth = doc.internal.pageSize.getWidth();
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        
+        doc.text(`Journey Report: ${myName}`, 10, 10);
+        doc.addImage(imgData, 'PNG', 0, 20, pdfWidth, pdfHeight);
+        doc.save(`Journey_${new Date().getTime()}.pdf`);
+        
+        controls.style.opacity = '1';
+    });
+  }
 
   function sendComment() {
     const input = document.getElementById('chatInput');
-    if(!input.value.trim()) return;
-    channel.publish('comment', { role: myRole, name: myName, text: input.value });
+    const text = input.value.trim();
+    if(!text) return;
+    channel.publish('comment', { role: myRole, name: myName, text: text });
     input.value = '';
   }
 
-  function displayComment(role, text, sender) {
+  function displayComment(role, text, senderName) {
     const container = document.getElementById('chat-overlay');
     const el = document.createElement('div');
     el.className = `msg ${role}-msg`;
-    el.innerHTML = `<b style="font-size:0.7em">${sender}</b><br>${text}`;
+    el.innerHTML = `<small style="opacity:0.7">${senderName}</small><br>${text}`;
     container.appendChild(el);
-    setTimeout(() => el.remove(), 7000);
+    setTimeout(() => el.remove(), 8000);
   }
 
-  // TRACKING LOGIC WITH DRIFT FILTER
   function toggleGPS() {
     if(isTracking) return;
     isTracking = true;
     startTime = Date.now();
-    document.getElementById('status').innerText = "Live";
-    
+    document.getElementById('status').innerText = "Broadcasting";
     watchId = navigator.geolocation.watchPosition(pos => {
-      let rawSpeed = pos.coords.speed ? (pos.coords.speed * 3.6) : 0;
-      
-      // DRIFT FILTER: If speed is less than 2km/h, treat it as 0
-      let filteredSpeed = rawSpeed > 2.0 ? rawSpeed.toFixed(1) : 0;
-      
-      const { latitude, longitude } = pos.coords;
-
-      // Only update distance if we are actually "moving"
-      if(lastPos && filteredSpeed > 0) {
-          let d = calcDist(lastPos.lat, lastPos.lng, latitude, longitude);
-          // Filter out tiny jumps (less than 5 meters)
-          if (d > 0.005) totalDist += d;
-      }
-      
+      const { latitude, longitude, speed } = pos.coords;
+      const s = speed ? (speed * 3.6).toFixed(1) : 0;
+      if(lastPos) totalDist += calcDist(lastPos.lat, lastPos.lng, latitude, longitude);
       lastPos = {lat: latitude, lng: longitude};
-      updateUI(filteredSpeed, totalDist.toFixed(2), latitude, longitude);
-      if(channel) channel.publish('update', { s: filteredSpeed, d: totalDist.toFixed(2), lat: latitude, lng: longitude, t: document.getElementById('timer').innerText });
+      const currentTime = document.getElementById('timer').innerText;
+      updateUI(s, totalDist.toFixed(2), latitude, longitude);
+      if(channel) channel.publish('update', { s, d: totalDist.toFixed(2), lat: latitude, lng: longitude, t: currentTime });
     }, null, {enableHighAccuracy: true});
     
     setInterval(() => {
       if(!isTracking) return;
-      let sec = Math.floor((Date.now() - startTime)/1000);
+      const sec = Math.floor((Date.now() - startTime)/1000);
       document.getElementById('timer').innerText = new Date(sec * 1000).toISOString().substr(14, 5);
     }, 1000);
+  }
+
+  async function toggleCamera() {
+    try {
+        const mode = confirm("Use Back Camera?") ? 'environment' : 'user';
+        stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: mode}, audio: true});
+        document.getElementById('videoArea').style.display = 'block';
+        document.getElementById('preview').srcObject = stream;
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.ondataavailable = e => chunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(chunks, {type: 'video/mp4'});
+          const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+          a.download = `Journey_${myName}.mp4`; a.click();
+        };
+        mediaRecorder.start();
+        isRecording = true;
+        document.getElementById('camBtn').innerText = "🎥 Recording...";
+    } catch(e) { alert("Camera Error"); }
+  }
+
+  function stopAll() {
+    isTracking = false;
+    navigator.geolocation.clearWatch(watchId);
+    if(isRecording && mediaRecorder.state !== "inactive") { mediaRecorder.stop(); stream.getTracks().forEach(t => t.stop()); }
+    document.getElementById('status').innerText = "Stopped";
+    if(channel) channel.publish('status', { msg: `${myName} has ended the trip` });
   }
 
   function updateUI(s, d, lat, lng) {
     document.getElementById('speed').innerText = s;
     document.getElementById('distance').innerText = d;
-    const pos = [lat, lng];
-    path.addLatLng(pos);
-    marker.setLatLng(pos);
-    map.setView(pos, 17);
+    const newPos = [lat, lng];
+    path.addLatLng(newPos);
+    marker.setLatLng(newPos);
+    map.setView(newPos, 16);
   }
 
   function calcDist(lat1, lon1, lat2, lon2) {
@@ -183,44 +255,23 @@
     return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   }
 
-  async function toggleCamera() {
-    try {
-        const mode = confirm("Use Rear Camera?") ? 'environment' : 'user';
-        stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: mode}, audio: true});
-        document.getElementById('videoArea').style.display = 'block';
-        document.getElementById('preview').srcObject = stream;
-        mediaRecorder = new MediaRecorder(stream);
-        mediaRecorder.ondataavailable = e => chunks.push(e.data);
-        mediaRecorder.onstop = () => {
-          const blob = new Blob(chunks, {type: 'video/mp4'});
-          const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-          a.download = `Trip_${myName}.mp4`; a.click();
-        };
-        mediaRecorder.start();
-        document.getElementById('camBtn').innerText = "🔴 Recording...";
-    } catch(e) { alert("Camera Error"); }
-  }
-
-  function stopAll() {
-    isTracking = false;
-    navigator.geolocation.clearWatch(watchId);
-    if(mediaRecorder) mediaRecorder.stop();
-    document.getElementById('status').innerText = "Ended";
-    if(channel) channel.publish('status', { msg: `${myName} stopped` });
-  }
-
   function copyLiveLink() {
-    navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?trip=${tripId}`);
-    alert("Link copied!");
+    const link = `${window.location.origin}${window.location.pathname}?trip=${tripId}`;
+    navigator.clipboard.writeText(link).then(() => alert("Live Link Copied!"));
   }
 
   window.onload = () => {
     if(isViewer) {
       document.getElementById('operatorUI').style.display = 'none';
-      document.getElementById('mainTitle').innerText = "Viewer Mode";
+      document.getElementById('viewerIndicator').style.display = 'block';
+      document.getElementById('mainTitle').innerText = "Live Viewer";
       channel.subscribe('update', (msg) => {
           updateUI(msg.data.s, msg.data.d, msg.data.lat, msg.data.lng);
           document.getElementById('timer').innerText = msg.data.t;
+          document.getElementById('status').innerText = "Connected";
+      });
+      channel.subscribe('status', (msg) => {
+          document.getElementById('status').innerText = msg.data.msg;
       });
     }
   };
