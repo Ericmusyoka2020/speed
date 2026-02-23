@@ -1,283 +1,284 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Live GeoCam Tracker Pro</title>
-  <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  
-  <style>
-    :root { --primary: #2563eb; --rec: #ef4444; --bg: #f8fafc; --driver: #059669; --viewer: #7c3aed; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: var(--bg); color: #1e293b; }
-    .container { max-width: 600px; margin: auto; padding: 15px; padding-bottom: 160px; position: relative; z-index: 1; }
-    header { background: #1e293b; color: white; padding: 15px; text-align: center; border-radius: 0 0 15px 15px; margin-bottom: 15px; }
-    .user-identity { font-size: 0.9em; background: rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 20px; display: inline-block; margin-top: 8px; border: 1px solid rgba(255,255,255,0.2); }
-    #videoArea { background: #000; border-radius: 12px; overflow: hidden; display: none; margin-bottom: 10px; position: relative; }
-    video { width: 100%; display: block; }
-    .rec-dot { position: absolute; top: 15px; right: 15px; height: 12px; width: 12px; background: red; border-radius: 50%; animation: blink 1s infinite; border: 2px solid white; }
-    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-    .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
-    .card { background: white; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .card span { font-size: 0.8em; color: #64748b; text-transform: uppercase; font-weight: bold; }
-    .card b { font-size: 1.5em; color: var(--primary); display: block; margin-top: 5px; }
-    
-    .controls { display: flex; flex-direction: column; gap: 10px; position: relative; z-index: 10; }
-    button { padding: 16px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; color: white; font-size: 1em; width: 100%; display: block; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    .btn-start { background: #059669; }
-    .btn-cam { background: #7c3aed; }
-    .btn-stop { background: #dc2626; }
-    .btn-share { background: #334155; }
-    .btn-pdf { background: #0ea5e9; }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live GeoCam Tracker Pro</title>
+  <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  
+  <style>
+    :root { --primary: #2563eb; --rec: #ef4444; --bg: #f8fafc; --driver: #059669; --viewer: #7c3aed; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: var(--bg); color: #1e293b; }
+    .container { max-width: 600px; margin: auto; padding: 15px; padding-bottom: 160px; position: relative; z-index: 1; }
+    header { background: #1e293b; color: white; padding: 15px; text-align: center; border-radius: 0 0 15px 15px; margin-bottom: 15px; }
+    .user-identity { font-size: 0.9em; background: rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 20px; display: inline-block; margin-top: 8px; border: 1px solid rgba(255,255,255,0.2); }
+    #videoArea { background: #000; border-radius: 12px; overflow: hidden; display: none; margin-bottom: 10px; position: relative; }
+    video { width: 100%; display: block; }
+    .rec-dot { position: absolute; top: 15px; right: 15px; height: 12px; width: 12px; background: red; border-radius: 50%; animation: blink 1s infinite; border: 2px solid white; }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
+    .card { background: white; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .card span { font-size: 0.8em; color: #64748b; text-transform: uppercase; font-weight: bold; }
+    .card b { font-size: 1.5em; color: var(--primary); display: block; margin-top: 5px; }
+    
+    .controls { display: flex; flex-direction: column; gap: 10px; position: relative; z-index: 10; }
+    button { padding: 16px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; color: white; font-size: 1em; width: 100%; display: block; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .btn-start { background: #059669; }
+    .btn-cam { background: #7c3aed; }
+    .btn-stop { background: #dc2626; }
+    .btn-share { background: #334155; }
+    .btn-pdf { background: #0ea5e9; }
 
-    #map-container { position: relative; border-radius: 15px; overflow: hidden; margin-top: 15px; margin-bottom: 15px; border: 2px solid #e2e8f0; height: 300px; z-index: 2; }
-    #map { height: 100%; width: 100%; }
-    #mapToggle { position: absolute; top: 10px; right: 10px; z-index: 1000; background: white; color: #1e293b; padding: 8px 12px; border-radius: 8px; font-size: 0.8em; border: 1px solid #ccc; cursor: pointer; font-weight: bold; }
-    
-    .chat-input-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px; display: flex; gap: 8px; box-shadow: 0 -4 -15px rgba(0,0,0,0.08); z-index: 1001; }
-    .chat-input-bar input { flex: 1; padding: 12px 15px; border: 2px solid #f1f5f9; background: #f8fafc; border-radius: 25px; outline: none; font-size: 16px; }
-    #chat-overlay { position: fixed; bottom: 100px; left: 15px; right: 15px; pointer-events: none; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
-    .msg { background: white; color: #1e293b; padding: 12px 18px; border-radius: 18px; width: fit-content; max-width: 80%; box-shadow: 0 4px 15px rgba(0,0,0,0.2); pointer-events: auto; font-size: 0.9em; }
-  </style>
+    #map-container { position: relative; border-radius: 15px; overflow: hidden; margin-top: 15px; margin-bottom: 15px; border: 2px solid #e2e8f0; height: 300px; z-index: 2; }
+    #map { height: 100%; width: 100%; }
+    #mapToggle { position: absolute; top: 10px; right: 10px; z-index: 1000; background: white; color: #1e293b; padding: 8px 12px; border-radius: 8px; font-size: 0.8em; border: 1px solid #ccc; cursor: pointer; font-weight: bold; }
+    
+    .chat-input-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px; display: flex; gap: 8px; box-shadow: 0 -4 -15px rgba(0,0,0,0.08); z-index: 1001; }
+    .chat-input-bar input { flex: 1; padding: 12px 15px; border: 2px solid #f1f5f9; background: #f8fafc; border-radius: 25px; outline: none; font-size: 16px; }
+    #chat-overlay { position: fixed; bottom: 100px; left: 15px; right: 15px; pointer-events: none; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
+    .msg { background: white; color: #1e293b; padding: 12px 18px; border-radius: 18px; width: fit-content; max-width: 80%; box-shadow: 0 4px 15px rgba(0,0,0,0.2); pointer-events: auto; font-size: 0.9em; }
+  </style>
 </head>
 <body>
 
 <header>
-  <h1 id="mainTitle" style="margin:0; font-size: 1.5rem;">GeoTracker Live</h1>
-  <div id="idBadge" class="user-identity">Authenticating...</div>
+  <h1 id="mainTitle" style="margin:0; font-size: 1.5rem;">GeoTracker Live</h1>
+  <div id="idBadge" class="user-identity">Authenticating...</div>
 </header>
 
 <div class="container" id="reportArea">
-  <div id="videoArea">
-    <video id="preview" autoplay muted playsinline></video>
-    <div class="rec-dot"></div>
-  </div>
+  <div id="videoArea">
+    <video id="preview" autoplay muted playsinline></video>
+    <div class="rec-dot"></div>
+  </div>
 
-  <div class="stats-grid">
-    <div class="card"><span>Speed</span><b id="speed">0</b><small>km/h</small></div>
-    <div class="card"><span>Distance</span><b id="distance">0.00</b><small>km</small></div>
-    <div class="card"><span>Duration</span><b id="timer">00:00</b></div>
-    <div class="card"><span>Signal</span><b id="status">Ready</b></div>
-  </div>
+  <div class="stats-grid">
+    <div class="card"><span>Speed</span><b id="speed">0</b><small>km/h</small></div>
+    <div class="card"><span>Distance</span><b id="distance">0.00</b><small>km</small></div>
+    <div class="card"><span>Duration</span><b id="timer">00:00</b></div>
+    <div class="card"><span>Signal</span><b id="status">Ready</b></div>
+  </div>
 
-  <div id="map-container">
-    <button id="mapToggle" onclick="toggleMapLock()">🔓 Unlock Map</button>
-    <div id="map"></div>
-  </div>
-  
-  <div class="controls">
-    <div id="operatorUI">
-        <button class="btn-start" style="margin-bottom:8px;" onclick="toggleGPS()">🛰️ Start Live Journey</button>
-        <button class="btn-cam" id="camBtn" style="margin-bottom:8px;" onclick="toggleCamera()">📷 Record Video</button>
-        <button class="btn-stop" style="margin-bottom:8px;" onclick="stopAll()">🛑 Stop Everything</button>
-        <button class="btn-share" style="margin-bottom:8px;" onclick="copyLiveLink()">🔗 Copy Shareable Link</button>
-    </div>
-    <button class="btn-pdf" onclick="generatePDF()">📥 Save Journey PDF & Log</button>
-  </div>
+  <div id="map-container">
+    <button id="mapToggle" onclick="toggleMapLock()">🔓 Unlock Map</button>
+    <div id="map"></div>
+  </div>
+  
+  <div class="controls">
+    <div id="operatorUI">
+        <button class="btn-start" style="margin-bottom:8px;" onclick="toggleGPS()">🛰️ Start Live Journey</button>
+        <button class="btn-cam" id="camBtn" style="margin-bottom:8px;" onclick="toggleCamera()">📷 Record Video</button>
+        <button class="btn-stop" style="margin-bottom:8px;" onclick="stopAll()">🛑 Stop Everything</button>
+        <button class="btn-share" style="margin-bottom:8px;" onclick="copyLiveLink()">🔗 Copy Shareable Link</button>
+    </div>
+    <button class="btn-pdf" onclick="generatePDF()">📥 Save Journey PDF & Log</button>
+  </div>
 </div>
 
 <div id="chat-overlay"></div>
 <div class="chat-input-bar">
-  <input type="text" id="chatInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendComment()">
-  <button style="background:var(--primary); width:70px; border-radius: 20px; padding: 10px;" onclick="sendComment()">Send</button>
+  <input type="text" id="chatInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendComment()">
+  <button style="background:var(--primary); width:70px; border-radius: 20px; padding: 10px;" onclick="sendComment()">Send</button>
 </div>
 
 <script>
-  const ABLY_KEY = 'tQeHYQ.ZsPdVg:oHH2d2amT9WrziD8QOrjuZppajh6ijgZZiQ-GsgysUU';
-  let ably, channel, watchId, stream, mediaRecorder;
-  let isTracking = false, mapLocked = true;
-  let startTime, totalDist = 0, lastPos = null;
-  let tripLog = [];
-  let maxSpeed = 0;
+  const ABLY_KEY = 'tQeHYQ.ZsPdVg:oHH2d2amT9WrziD8QOrjuZppajh6ijgZZiQ-GsgysUU';
+  let ably, channel, watchId, stream, mediaRecorder;
+  let isTracking = false, mapLocked = true;
+  let startTime, totalDist = 0, lastPos = null;
+  let tripLog = [];
+  let maxSpeed = 0;
 
-  const params = new URLSearchParams(window.location.search);
-  const isViewer = params.has('trip');
-  const tripId = isViewer ? params.get('trip') : "trip_" + Math.random().toString(36).substr(2, 9);
-  const myRole = isViewer ? "viewer" : "driver";
-  
-  let myName = prompt("Identification: Enter your name") || "User_" + Math.floor(Math.random()*999);
-  document.getElementById('idBadge').innerText = `User: ${myName}`;
+  const params = new URLSearchParams(window.location.search);
+  const isViewer = params.has('trip');
+  const tripId = isViewer ? params.get('trip') : "trip_" + Math.random().toString(36).substr(2, 9);
+  const myRole = isViewer ? "viewer" : "driver";
+  
+  let myName = prompt("Identification: Enter your name") || "User_" + Math.floor(Math.random()*999);
+  document.getElementById('idBadge').innerText = `User: ${myName}`;
 
-  const map = L.map('map').setView([0,0], 14);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-  let path = L.polyline([], {color: '#2563eb', weight: 5}).addTo(map);
-  let marker = L.circleMarker([0,0], {radius: 8, color: 'white', fillColor: '#2563eb', fillOpacity: 1}).addTo(map);
+  const map = L.map('map').setView([0,0], 14);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+  let path = L.polyline([], {color: '#2563eb', weight: 5}).addTo(map);
+  let marker = L.circleMarker([0,0], {radius: 8, color: 'white', fillColor: '#2563eb', fillOpacity: 1}).addTo(map);
 
-  function toggleMapLock() {
-    mapLocked = !mapLocked;
-    document.getElementById('mapToggle').innerText = mapLocked ? "🔓 Unlock Map" : "🔒 Lock Map";
-  }
+  function toggleMapLock() {
+    mapLocked = !mapLocked;
+    document.getElementById('mapToggle').innerText = mapLocked ? "🔓 Unlock Map" : "🔒 Lock Map";
+  }
 
-  try {
-      ably = new Ably.Realtime({ key: ABLY_KEY, clientId: myName });
-      channel = ably.channels.get(tripId);
-      channel.subscribe('comment', (msg) => displayComment(msg.data.role, msg.data.text, msg.data.name));
-      if(isViewer) {
-          document.getElementById('operatorUI').style.display = 'none';
-          document.getElementById('mainTitle').innerText = "Viewing Journey";
-          channel.subscribe('update', (msg) => {
-              updateUI(msg.data.s, msg.data.d, msg.data.lat, msg.data.lng);
-              document.getElementById('timer').innerText = msg.data.t;
-              if (parseFloat(msg.data.s) > maxSpeed) maxSpeed = parseFloat(msg.data.s);
-              tripLog.push({ time: msg.data.t, speed: msg.data.s, dist: msg.data.d, lat: msg.data.lat, lng: msg.data.lng });
-          });
-      }
-  } catch(e) { console.error("Realtime Error"); }
+  try {
+      ably = new Ably.Realtime({ key: ABLY_KEY, clientId: myName });
+      channel = ably.channels.get(tripId);
+      channel.subscribe('comment', (msg) => displayComment(msg.data.role, msg.data.text, msg.data.name));
+      if(isViewer) {
+          document.getElementById('operatorUI').style.display = 'none';
+          document.getElementById('mainTitle').innerText = "Viewing Journey";
+          channel.subscribe('update', (msg) => {
+              updateUI(msg.data.s, msg.data.d, msg.data.lat, msg.data.lng);
+              document.getElementById('timer').innerText = msg.data.t;
+              if (parseFloat(msg.data.s) > maxSpeed) maxSpeed = parseFloat(msg.data.s);
+              tripLog.push({ time: msg.data.t, speed: msg.data.s, dist: msg.data.d, lat: msg.data.lat, lng: msg.data.lng });
+          });
+      }
+  } catch(e) { console.error("Realtime Error"); }
 
-  function toggleGPS() {
-    if(isTracking) return;
-    isTracking = true;
-    startTime = Date.now();
-    document.getElementById('status').innerText = "Live";
-    
-    watchId = navigator.geolocation.watchPosition(pos => {
-      if (pos.coords.accuracy > 35) return; 
+  function toggleGPS() {
+    if(isTracking) return;
+    isTracking = true;
+    startTime = Date.now();
+    document.getElementById('status').innerText = "Live";
+    
+    watchId = navigator.geolocation.watchPosition(pos => {
+      if (pos.coords.accuracy > 35) return; 
 
-      const { latitude, longitude, speed } = pos.coords;
-      let s = speed ? (speed * 3.6) : 0;
-      
-      if(lastPos) {
-          let step = calcDist(lastPos.lat, lastPos.lng, latitude, longitude);
-          if (step > 0.002) { totalDist += step; } else { s = 0; }
-      }
-      
-      const displaySpeed = s < 0.8 ? "0.0" : s.toFixed(1);
-      if (parseFloat(displaySpeed) > maxSpeed) maxSpeed = parseFloat(displaySpeed);
-      
-      const currentTime = document.getElementById('timer').innerText;
-      lastPos = {lat: latitude, lng: longitude};
+      const { latitude, longitude, speed } = pos.coords;
+      let s = speed ? (speed * 3.6) : 0;
+      
+      if(lastPos) {
+          let step = calcDist(lastPos.lat, lastPos.lng, latitude, longitude);
+          if (step > 0.002) { totalDist += step; } else { s = 0; }
+      }
+      
+      const displaySpeed = s < 0.8 ? "0.0" : s.toFixed(1);
+      if (parseFloat(displaySpeed) > maxSpeed) maxSpeed = parseFloat(displaySpeed);
+      
+      const currentTime = document.getElementById('timer').innerText;
+      lastPos = {lat: latitude, lng: longitude};
 
-      tripLog.push({ time: currentTime, speed: displaySpeed, dist: totalDist.toFixed(2), lat: latitude, lng: longitude });
+      tripLog.push({ time: currentTime, speed: displaySpeed, dist: totalDist.toFixed(2), lat: latitude, lng: longitude });
 
-      updateUI(displaySpeed, totalDist.toFixed(2), latitude, longitude);
-      if(channel) channel.publish('update', { s: displaySpeed, d: totalDist.toFixed(2), lat: latitude, lng: longitude, t: currentTime });
-    }, null, {enableHighAccuracy: true});
+      updateUI(displaySpeed, totalDist.toFixed(2), latitude, longitude);
+      if(channel) channel.publish('update', { s: displaySpeed, d: totalDist.toFixed(2), lat: latitude, lng: longitude, t: currentTime });
+    }, null, {enableHighAccuracy: true});
 
-    setInterval(() => {
-      if(!isTracking) return;
-      const sec = Math.floor((Date.now() - startTime)/1000);
-      document.getElementById('timer').innerText = new Date(sec * 1000).toISOString().substr(14, 5);
-    }, 1000);
-  }
+    setInterval(() => {
+      if(!isTracking) return;
+      const sec = Math.floor((Date.now() - startTime)/1000);
+      document.getElementById('timer').innerText = new Date(sec * 1000).toISOString().substr(14, 5);
+    }, 1000);
+  }
 
-  function updateUI(s, d, lat, lng) {
-    document.getElementById('speed').innerText = s;
-    document.getElementById('distance').innerText = d;
-    const newPos = [lat, lng];
-    path.addLatLng(newPos);
-    marker.setLatLng(newPos);
-    if(mapLocked) map.panTo(newPos);
-  }
+  function updateUI(s, d, lat, lng) {
+    document.getElementById('speed').innerText = s;
+    document.getElementById('distance').innerText = d;
+    const newPos = [lat, lng];
+    path.addLatLng(newPos);
+    marker.setLatLng(newPos);
+    if(mapLocked) map.panTo(newPos);
+  }
 
-  function generatePDF() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('p', 'mm', 'a4');
-    
-    html2canvas(document.getElementById('reportArea')).then(canvas => {
-        const imgData = canvas.toDataURL('image/png');
-        doc.setFontSize(22);
-        doc.setTextColor(37, 99, 235);
-        doc.text("Official Journey Log", 15, 20);
-        
-        doc.setFontSize(10);
-        doc.setTextColor(100);
-        doc.text(`Generated: ${new Date().toLocaleString()}`, 15, 26);
-        doc.text(`Driver/Viewer: ${myName} | Session: ${tripId}`, 15, 31);
-        
-        // Overview Image
-        doc.addImage(imgData, 'PNG', 10, 40, 190, 0);
+  function generatePDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'mm', 'a4');
+    
+    html2canvas(document.getElementById('reportArea')).then(canvas => {
+        const imgData = canvas.toDataURL('image/png');
+        doc.setFontSize(22);
+        doc.setTextColor(37, 99, 235);
+        doc.text("Official Journey Log", 15, 20);
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(`Generated: ${new Date().toLocaleString()}`, 15, 26);
+        doc.text(`Driver/Viewer: ${myName} | Session: ${tripId}`, 15, 31);
+        
+        // Overview Image
+        doc.addImage(imgData, 'PNG', 10, 40, 190, 0);
 
-        // Summary Stats
-        const avgSpeed = tripLog.length > 0 ? (tripLog.reduce((a, b) => a + parseFloat(b.speed), 0) / tripLog.length).toFixed(1) : 0;
-        
-        doc.addPage();
-        doc.setFontSize(18);
-        doc.setTextColor(0);
-        doc.text("Journey Summary", 15, 20);
-        
-        doc.autoTable({
-            startY: 30,
-            head: [['Statistic', 'Value']],
-            body: [
-                ['Total Distance Covered', totalDist.toFixed(2) + " km"],
-                ['Maximum Speed Reached', maxSpeed + " km/h"],
-                ['Average Speed', avgSpeed + " km/h"],
-                ['Total Logs Recorded', tripLog.length]
-            ],
-            theme: 'grid'
-        });
+        // Summary Stats
+        const avgSpeed = tripLog.length > 0 ? (tripLog.reduce((a, b) => a + parseFloat(b.speed), 0) / tripLog.length).toFixed(1) : 0;
+        
+        doc.addPage();
+        doc.setFontSize(18);
+        doc.setTextColor(0);
+        doc.text("Journey Summary", 15, 20);
+        
+        doc.autoTable({
+            startY: 30,
+            head: [['Statistic', 'Value']],
+            body: [
+                ['Total Distance Covered', totalDist.toFixed(2) + " km"],
+                ['Maximum Speed Reached', maxSpeed + " km/h"],
+                ['Average Speed', avgSpeed + " km/h"],
+                ['Total Logs Recorded', tripLog.length]
+            ],
+            theme: 'grid'
+        });
 
-        // Detailed Logs
-        if(tripLog.length > 0) {
-            doc.setFontSize(18);
-            doc.text("Movement Time Log", 15, doc.autoTable.previous.finalY + 15);
-            
-            const tableData = tripLog.map(row => [row.time, row.speed + " km/h", row.dist + " km", `${row.lat.toFixed(5)}, ${row.lng.toFixed(5)}`]);
+        // Detailed Logs
+        if(tripLog.length > 0) {
+            doc.setFontSize(18);
+            doc.text("Movement Time Log", 15, doc.autoTable.previous.finalY + 15);
+            
+            const tableData = tripLog.map(row => [row.time, row.speed + " km/h", row.dist + " km", `${row.lat.toFixed(5)}, ${row.lng.toFixed(5)}`]);
 
-            doc.autoTable({
-                startY: doc.autoTable.previous.finalY + 20,
-                head: [['Time', 'Speed', 'Distance', 'Location']],
-                body: tableData,
-                theme: 'striped',
-                headStyles: { fillColor: [37, 99, 235] }
-            });
-        }
-        doc.save(`Journey_Report_${myName}.pdf`);
-    });
-  }
+            doc.autoTable({
+                startY: doc.autoTable.previous.finalY + 20,
+                head: [['Time', 'Speed', 'Distance', 'Location']],
+                body: tableData,
+                theme: 'striped',
+                headStyles: { fillColor: [37, 99, 235] }
+            });
+        }
+        doc.save(`Journey_Report_${myName}.pdf`);
+    });
+  }
 
-  function calcDist(lat1, lon1, lat2, lon2) {
-    const R = 6371;
-    const dLat = (lat2-lat1)*Math.PI/180;
-    const dLon = (lon2-lon1)*Math.PI/180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
-    return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  }
+  function calcDist(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2-lat1)*Math.PI/180;
+    const dLon = (lon2-lon1)*Math.PI/180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+    return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
 
-  function displayComment(role, text, senderName) {
-    const el = document.createElement('div');
-    el.className = `msg`;
-    el.style.alignSelf = role === 'driver' ? 'flex-end' : 'flex-start';
-    if(role === 'driver') el.style.borderRight = "4px solid var(--driver)";
-    else el.style.borderLeft = "4px solid var(--viewer)";
-    el.innerHTML = `<b>${senderName}</b><br>${text}`;
-    document.getElementById('chat-overlay').appendChild(el);
-    setTimeout(() => el.remove(), 7000);
-  }
+  function displayComment(role, text, senderName) {
+    const el = document.createElement('div');
+    el.className = `msg`;
+    el.style.alignSelf = role === 'driver' ? 'flex-end' : 'flex-start';
+    if(role === 'driver') el.style.borderRight = "4px solid var(--driver)";
+    else el.style.borderLeft = "4px solid var(--viewer)";
+    el.innerHTML = `<b>${senderName}</b><br>${text}`;
+    document.getElementById('chat-overlay').appendChild(el);
+    setTimeout(() => el.remove(), 7000);
+  }
 
-  function sendComment() {
-    const input = document.getElementById('chatInput');
-    if(input.value.trim()) {
-        channel.publish('comment', { role: myRole, name: myName, text: input.value });
-        input.value = '';
-    }
-  }
+  function sendComment() {
+    const input = document.getElementById('chatInput');
+    if(input.value.trim()) {
+        channel.publish('comment', { role: myRole, name: myName, text: input.value });
+        input.value = '';
+    }
+  }
 
-  function copyLiveLink() {
-    const url = `${window.location.origin}${window.location.pathname}?trip=${tripId}`;
-    navigator.clipboard.writeText(url).then(() => alert("Live Link Copied!"));
-  }
+  function copyLiveLink() {
+    const url = `${window.location.origin}${window.location.pathname}?trip=${tripId}`;
+    navigator.clipboard.writeText(url).then(() => alert("Live Link Copied!"));
+  }
 
-  async function toggleCamera() {
-    try {
-        stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: 'environment'}, audio: true});
-        document.getElementById('videoArea').style.display = 'block';
-        document.getElementById('preview').srcObject = stream;
-        mediaRecorder = new MediaRecorder(stream);
-        mediaRecorder.start();
-        document.getElementById('camBtn').innerText = "🎥 Recording Active";
-    } catch(e) { alert("Camera Denied"); }
-  }
+  async function toggleCamera() {
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: 'environment'}, audio: true});
+        document.getElementById('videoArea').style.display = 'block';
+        document.getElementById('preview').srcObject = stream;
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.start();
+        document.getElementById('camBtn').innerText = "🎥 Recording Active";
+    } catch(e) { alert("Camera Denied"); }
+  }
 
-  function stopAll() {
-    isTracking = false;
-    navigator.geolocation.clearWatch(watchId);
-    document.getElementById('status').innerText = "Ended";
-  }
+  function stopAll() {
+    isTracking = false;
+    navigator.geolocation.clearWatch(watchId);
+    document.getElementById('status').innerText = "Ended";
+  }
 </script>
 </body>
 </html>
