@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -115,6 +114,14 @@
   myName = myName.trim();
   document.getElementById('idBadge').innerText = `User: ${myName}`;
 
+  // REFRESH PROTECTION: This prevents accidental data loss
+  window.addEventListener('beforeunload', (e) => {
+    if (isTracking || isRecording) {
+      e.preventDefault();
+      e.returnValue = 'You have an active journey. Reloading will lose all current tracking data. Are you sure?';
+    }
+  });
+
   const map = L.map('map').setView([0,0], 14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
   let path = L.polyline([], {color: '#2563eb', weight: 6, opacity: 0.8}).addTo(map);
@@ -138,14 +145,12 @@
       }
   } catch(e) { console.error("Ably Init Failed"); }
 
-  // PDF Generation Function
   function generatePDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
     const reportArea = document.getElementById('reportArea');
     const controls = document.getElementById('uiControls');
     
-    // Temporarily hide controls for clean screenshot
     controls.style.display = 'none';
 
     html2canvas(reportArea, { useCORS: true, scale: 2 }).then(canvas => {
@@ -153,7 +158,6 @@
         const pdfWidth = doc.internal.pageSize.getWidth();
         const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
         
-        // Add PDF Header
         doc.setFillColor(30, 41, 59);
         doc.rect(0, 0, 210, 25, 'F');
         doc.setTextColor(255, 255, 255);
@@ -166,10 +170,8 @@
         doc.text(`Trip ID: ${tripId}`, 14, 37);
         doc.text(`Date: ${new Date().toLocaleString()}`, 14, 42);
 
-        // Add the Visual Map/Stats Screenshot
         doc.addImage(imgData, 'PNG', 5, 50, pdfWidth - 10, pdfHeight - 10);
 
-        // Add the Detailed Table
         if (tripLog.length > 0) {
             doc.addPage();
             doc.setFontSize(14);
@@ -193,7 +195,7 @@
         }
 
         doc.save(`GeoTracker_Report_${new Date().getTime()}.pdf`);
-        controls.style.display = 'flex'; // Restore controls
+        controls.style.display = 'flex'; 
     });
   }
 
@@ -223,7 +225,6 @@
       lastPos = {lat: latitude, lng: longitude};
       const currentTime = document.getElementById('timer').innerText;
       
-      // Store log for PDF
       tripLog.push({
           time: currentTime,
           speed: displaySpeed,
@@ -298,8 +299,9 @@
 
   function stopAll() {
     isTracking = false;
+    isRecording = false;
     navigator.geolocation.clearWatch(watchId);
-    if(isRecording && mediaRecorder.state !== "inactive") { 
+    if(mediaRecorder && mediaRecorder.state !== "inactive") { 
         mediaRecorder.stop(); 
         stream.getTracks().forEach(t => t.stop()); 
     }
@@ -331,7 +333,6 @@
           document.getElementById('timer').innerText = msg.data.t;
           document.getElementById('status').innerText = "Live";
 
-          // Viewer stores the log too for their PDF
           tripLog.push({
               time: msg.data.t,
               speed: msg.data.s,
