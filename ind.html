@@ -18,8 +18,8 @@
     .container { max-width: 600px; margin: auto; padding: 15px; padding-bottom: 140px; }
     header { background: #1e293b; color: white; padding: 15px; text-align: center; border-radius: 0 0 15px 15px; margin-bottom: 15px; }
     .user-identity { font-size: 0.9em; background: rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 20px; display: inline-block; margin-top: 8px; border: 1px solid rgba(255,255,255,0.2); }
-    #videoArea { background: #000; border-radius: 12px; overflow: hidden; display: none; margin-bottom: 10px; position: relative; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); }
-    video { width: 100%; display: block; border-radius: 12px; }
+    #videoArea { background: #000; border-radius: 12px; overflow: hidden; display: none; margin-bottom: 10px; position: relative; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); min-height: 200px; }
+    video { width: 100%; height: 100%; display: block; border-radius: 12px; object-fit: cover; }
     .rec-dot { position: absolute; top: 15px; right: 15px; height: 12px; width: 12px; background: red; border-radius: 50%; animation: blink 1s infinite; border: 2px solid white; z-index: 10; }
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
     .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
@@ -33,6 +33,7 @@
     button:active { transform: scale(0.98); }
     .btn-start { background: #059669; }
     .btn-cam { background: #7c3aed; }
+    .btn-stop-cam { background: #ea580c; }
     .btn-stop { background: #dc2626; }
     .btn-share { background: #334155; }
     .btn-save-video { background: #d97706; }
@@ -81,10 +82,16 @@
     <div id="operatorUI">
         <button class="btn-start" id="gpsBtn" onclick="toggleGPS()" style="width:100%; margin-bottom:8px;">🛰️ Start Live Journey</button>
         <button class="btn-cam" id="camBtn" onclick="toggleCamera()" style="width:100%; margin-bottom:8px;">📷 Start Live Video Stream</button>
+        <button class="btn-stop-cam" id="stopCamBtn" onclick="stopVideoStream()" style="width:100%; margin-bottom:8px; display:none;">⏹️ Stop Video Stream</button>
         <button class="btn-save-video" id="saveVideoBtn" onclick="downloadRecordedVideo()" style="width:100%; margin-bottom:8px; display:none;">💾 Save Recorded Video</button>
-        <button class="btn-stop" onclick="stopAll()" style="width:100%; margin-bottom:8px;">🛑 Stop Everything</button>
+        <button class="btn-stop" onclick="stopAll()" style="width:100%; margin-bottom:8px;">🛑 Stop Entire Trip</button>
         <button class="btn-share" onclick="copyLiveLink()" style="width:100%; margin-bottom:8px;">🔗 Copy Shareable Live Link</button>
     </div>
+    
+    <div id="viewerUI" style="display:none;">
+        <button class="btn-save-video" id="viewerSaveVideoBtn" onclick="downloadViewerRecordedVideo()" style="width:100%; margin-bottom:8px; display:none;">💾 Save Streamed Video</button>
+    </div>
+
     <button class="btn-pdf" id="pdfBtn" onclick="generatePDF()" style="width:100%;">📥 Save Journey as PDF</button>
   </div>
 </div>
@@ -98,14 +105,15 @@
 
 <script>
   const ABLY_KEY = 'tQeHYQ.ZsPdVg:oHH2d2amT9WrziD8QOrjuZppajh6ijgZZiQ-GsgysUU';
-  const RTC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+  const RTC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
   
-  let ably, channel, watchId, localStream, mediaRecorder;
+  let ably, channel, watchId, localStream, mediaRecorder, viewerRecorder;
   let peerConnections = {}; 
   let recordedBlobUrl = null;
+  let viewerRecordedBlobUrl = null;
+  let driverChunks = [], viewerChunks = [];
   let isTracking = false, isRecording = false;
   let startTime, totalDist = 0, lastPos = null;
-  let chunks = [];
   let tripLog = []; 
   let hasSetInitialView = false;
 
@@ -161,6 +169,7 @@
               });
           });
       } else {
+          document.getElementById('viewerUI').style.display = 'block';
           channel.publish('webrtc-signal', { type: 'viewer-ready', sender: myName });
       }
   } catch(e) { console.error("Ably Init Failed", e); }
@@ -169,25 +178,36 @@
     if(isRecording) return;
     try {
         const mode = confirm("Use Back Camera?") ? 'environment' : 'user';
-        localStream = await navigator.mediaDevices.getUserMedia({video: {facingMode: mode}, audio: true});
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: mode, width: { ideal: 1280 }, height: { ideal: 720 } }, 
+          audio: true
+        });
         
         const previewNode = document.getElementById('preview');
         previewNode.srcObject = localStream;
         previewNode.muted = true;
+        previewNode.play().catch(e => console.log("Play error:", e));
+        
         document.getElementById('videoArea').style.display = 'block';
         document.getElementById('recDot').style.display = 'block';
 
-        chunks = [];
-        mediaRecorder = new MediaRecorder(localStream);
-        mediaRecorder.ondataavailable = e => { if(e.data.size > 0) chunks.push(e.data); };
-        mediaRecorder.onstop = () => {
-          const blob = new Blob(chunks, {type: 'video/mp4'});
-          recordedBlobUrl = URL.createObjectURL(blob);
-          document.getElementById('saveVideoBtn').style.display = 'block';
-        };
-        mediaRecorder.start();
+        driverChunks = [];
+        try {
+          mediaRecorder = new MediaRecorder(localStream);
+          mediaRecorder.ondataavailable = e => { if(e.data && e.data.size > 0) driverChunks.push(e.data); };
+          mediaRecorder.onstop = () => {
+            if(driverChunks.length > 0) {
+              const blob = new Blob(driverChunks, {type: 'video/mp4'});
+              recordedBlobUrl = URL.createObjectURL(blob);
+              document.getElementById('saveVideoBtn').style.display = 'block';
+            }
+          };
+          mediaRecorder.start(1000);
+        } catch(err) { console.error("Local recorder error:", err); }
+
         isRecording = true;
-        document.getElementById('camBtn').innerText = "🎥 Video Broadcasting";
+        document.getElementById('camBtn').style.display = 'none';
+        document.getElementById('stopCamBtn').style.display = 'block';
 
         channel.presence.get((err, members) => {
             if(!err && members) {
@@ -197,7 +217,33 @@
             }
         });
 
-    } catch(e) { alert("Camera Access Denied or Unavailable"); }
+    } catch(e) { alert("Camera Access Denied or Unavailable: " + e.message); }
+  }
+
+  function stopVideoStream() {
+    if(!isRecording && !localStream) return;
+    
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      mediaRecorder.stop();
+    }
+    
+    if (localStream) {
+      localStream.getTracks().forEach(t => t.stop());
+      localStream = null;
+    }
+
+    Object.keys(peerConnections).forEach(clientId => {
+      peerConnections[clientId].close();
+      delete peerConnections[clientId];
+    });
+
+    isRecording = false;
+    document.getElementById('recDot').style.display = 'none';
+    document.getElementById('videoArea').style.display = 'none';
+    document.getElementById('camBtn').style.display = 'block';
+    document.getElementById('stopCamBtn').style.display = 'none';
+
+    channel.publish('webrtc-signal', { type: 'stream-ended', sender: myName });
   }
 
   function downloadRecordedVideo() {
@@ -211,13 +257,28 @@
     a.click();
   }
 
+  function downloadViewerRecordedVideo() {
+    if(!viewerRecordedBlobUrl) {
+      alert("No stream video recorded yet.");
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = viewerRecordedBlobUrl;
+    a.download = `Stream_Watch_${myName}_${Date.now()}.mp4`;
+    a.click();
+  }
+
   function initiateWebRTCConnection(targetClientId) {
-      if(peerConnections[targetClientId]) return;
+      if(peerConnections[targetClientId]) {
+        peerConnections[targetClientId].close();
+      }
       
       const pc = new RTCPeerConnection(RTC_CONFIG);
       peerConnections[targetClientId] = pc;
 
-      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+      localStream.getTracks().forEach(track => {
+        pc.addTrack(track, localStream);
+      });
 
       pc.onicecandidate = (event) => {
           if (event.candidate) {
@@ -230,32 +291,51 @@
           }
       };
 
-      pc.createOffer().then(offer => {
-          return pc.setLocalDescription(offer);
-      }).then(() => {
-          channel.publish('webrtc-signal', {
-              type: 'offer',
-              sdp: pc.localDescription,
-              target: targetClientId,
-              sender: myName
-          });
-      }).catch(e => console.error("Offer Error:", e));
+      pc.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: true })
+        .then(offer => pc.setLocalDescription(offer))
+        .then(() => {
+            channel.publish('webrtc-signal', {
+                type: 'offer',
+                sdp: pc.localDescription,
+                target: targetClientId,
+                sender: myName
+            });
+        }).catch(e => console.error("Offer Error:", e));
   }
 
   async function handleWebRTCSignal(data) {
       if (data.target && data.target !== myName) return;
 
       if (isViewer && data.type === 'offer') {
+          if(peerConnections[data.sender]) {
+            peerConnections[data.sender].close();
+          }
+
           const pc = new RTCPeerConnection(RTC_CONFIG);
           peerConnections[data.sender] = pc;
 
           pc.ontrack = (event) => {
               const videoNode = document.getElementById('preview');
               document.getElementById('videoArea').style.display = 'block';
-              if (videoNode.srcObject !== event.streams[0]) {
-                  videoNode.srcObject = event.streams[0];
-                  videoNode.muted = false; 
-              }
+              
+              const incomingStream = event.streams[0] || new MediaStream([event.track]);
+              videoNode.srcObject = incomingStream;
+              videoNode.muted = false; 
+              videoNode.play().catch(e => console.log("Autoplay error:", e));
+
+              viewerChunks = [];
+              try {
+                viewerRecorder = new MediaRecorder(incomingStream);
+                viewerRecorder.ondataavailable = e => { if(e.data && e.data.size > 0) viewerChunks.push(e.data); };
+                viewerRecorder.onstop = () => {
+                  if(viewerChunks.length > 0) {
+                    const blob = new Blob(viewerChunks, {type: 'video/mp4'});
+                    viewerRecordedBlobUrl = URL.createObjectURL(blob);
+                    document.getElementById('viewerSaveVideoBtn').style.display = 'block';
+                  }
+                };
+                viewerRecorder.start(1000);
+              } catch(err) { console.error("Viewer recording error:", err); }
           };
 
           pc.onicecandidate = (event) => {
@@ -288,12 +368,18 @@
       } 
       else if (data.type === 'candidate') {
           const pc = peerConnections[data.sender];
-          if (pc) {
+          if (pc && pc.remoteDescription) {
               await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
           }
       }
       else if (!isViewer && data.type === 'viewer-ready' && localStream) {
           initiateWebRTCConnection(data.sender);
+      }
+      else if (isViewer && data.type === 'stream-ended') {
+          if (viewerRecorder && viewerRecorder.state !== "inactive") {
+            viewerRecorder.stop();
+          }
+          document.getElementById('videoArea').style.display = 'none';
       }
   }
 
@@ -442,23 +528,15 @@
 
   function stopAll() {
     isTracking = false;
-    isRecording = false;
     if (watchId) navigator.geolocation.clearWatch(watchId);
     
-    if(mediaRecorder && mediaRecorder.state !== "inactive") { 
-        mediaRecorder.stop(); 
-    }
-    if (localStream) {
-        localStream.getTracks().forEach(t => t.stop()); 
-    }
+    stopVideoStream();
 
-    Object.values(peerConnections).forEach(pc => pc.close());
-    peerConnections = {};
+    if (viewerRecorder && viewerRecorder.state !== "inactive") {
+      viewerRecorder.stop();
+    }
 
     document.getElementById('status').innerText = "Ended";
-    document.getElementById('recDot').style.display = 'none';
-    document.getElementById('camBtn').innerText = "📷 Live Stream Ended";
-    
     if(channel) channel.publish('status', { msg: `${myName} ended the trip` });
   }
 
