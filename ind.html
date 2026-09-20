@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -18,8 +19,8 @@
     header { background: #1e293b; color: white; padding: 15px; text-align: center; border-radius: 0 0 15px 15px; margin-bottom: 15px; }
     .user-identity { font-size: 0.9em; background: rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 20px; display: inline-block; margin-top: 8px; border: 1px solid rgba(255,255,255,0.2); }
     #videoArea { background: #000; border-radius: 12px; overflow: hidden; display: none; margin-bottom: 10px; position: relative; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); }
-    video { width: 100%; display: block; }
-    .rec-dot { position: absolute; top: 15px; right: 15px; height: 12px; width: 12px; background: red; border-radius: 50%; animation: blink 1s infinite; border: 2px solid white; }
+    video { width: 100%; display: block; border-radius: 12px; }
+    .rec-dot { position: absolute; top: 15px; right: 15px; height: 12px; width: 12px; background: red; border-radius: 50%; animation: blink 1s infinite; border: 2px solid white; z-index: 10; }
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
     .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
     .card { background: white; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
@@ -34,14 +35,15 @@
     .btn-cam { background: #7c3aed; }
     .btn-stop { background: #dc2626; }
     .btn-share { background: #334155; }
-    .btn-pdf { background: #0ea5e9; margin-top: 10px; }
+    .btn-save-video { background: #d97706; }
+    .btn-pdf { background: #0ea5e9; margin-top: 5px; }
     #map { height: 250px; border-radius: 15px; margin-top: 15px; border: 2px solid #e2e8f0; z-index: 1; }
     .viewer-tag { background: var(--viewer); color: white; padding: 8px 15px; border-radius: 20px; font-size: 0.8em; display: inline-block; margin-bottom: 10px; width: 100%; box-sizing: border-box; text-align: center;}
-    #chat-overlay { position: fixed; bottom: 100px; left: 15px; right: 15px; pointer-events: none; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
-    .msg { background: white; color: #1e293b; padding: 12px 18px; border-radius: 18px; width: fit-content; max-width: 80%; box-shadow: 0 4px 15px rgba(0,0,0,0.2); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: auto; }
-    .msg.viewer-msg { border-left: 6px solid var(--viewer); align-self: flex-start; border-bottom-left-radius: 2px; }
-    .msg.driver-msg { border-right: 6px solid var(--driver); align-self: flex-end; border-bottom-right-radius: 2px; text-align: right; }
-    .chat-input-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px; display: flex; gap: 8px; box-shadow: 0 -4px 15px rgba(0,0,0,0.08); z-index: 1001; }
+    #chat-overlay { position: fixed; bottom: 85px; left: 15px; right: 15px; pointer-events: none; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+    .msg { background: white; color: #1e293b; padding: 10px 14px; border-radius: 14px; width: fit-content; max-width: 85%; box-shadow: 0 4px 15px rgba(0,0,0,0.2); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: auto; font-size: 0.9em; }
+    .msg.viewer-msg { border-left: 5px solid var(--viewer); align-self: flex-start; border-bottom-left-radius: 2px; }
+    .msg.driver-msg { border-right: 5px solid var(--driver); align-self: flex-end; border-bottom-right-radius: 2px; text-align: right; }
+    .chat-input-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 12px 15px; display: flex; gap: 8px; box-shadow: 0 -4px 15px rgba(0,0,0,0.08); z-index: 1001; }
     .chat-input-bar input { flex: 1; padding: 12px 15px; border: 2px solid #f1f5f9; background: #f8fafc; border-radius: 25px; outline: none; font-size: 16px; }
     .btn-send { background: var(--primary); width: 80px; }
   </style>
@@ -59,11 +61,11 @@
     <div id="viewerNames">Waiting for viewers...</div>
   </div>
 
-  <div id="viewerIndicator" style="display:none;" class="viewer-tag">📡 You are watching this journey</div>
+  <div id="viewerIndicator" style="display:none;" class="viewer-tag">📡 You are watching this journey live</div>
 
   <div id="videoArea">
-    <video id="preview" autoplay muted playsinline></video>
-    <div class="rec-dot"></div>
+    <video id="preview" autoplay playsinline muted></video>
+    <div class="rec-dot" id="recDot" style="display:none;"></div>
   </div>
 
   <div class="stats-grid">
@@ -78,11 +80,12 @@
   <div class="controls" id="uiControls">
     <div id="operatorUI">
         <button class="btn-start" id="gpsBtn" onclick="toggleGPS()" style="width:100%; margin-bottom:8px;">🛰️ Start Live Journey</button>
-        <button class="btn-cam" id="camBtn" onclick="toggleCamera()" style="width:100%; margin-bottom:8px;">📷 Record Video</button>
+        <button class="btn-cam" id="camBtn" onclick="toggleCamera()" style="width:100%; margin-bottom:8px;">📷 Start Live Video Stream</button>
+        <button class="btn-save-video" id="saveVideoBtn" onclick="downloadRecordedVideo()" style="width:100%; margin-bottom:8px; display:none;">💾 Save Recorded Video</button>
         <button class="btn-stop" onclick="stopAll()" style="width:100%; margin-bottom:8px;">🛑 Stop Everything</button>
         <button class="btn-share" onclick="copyLiveLink()" style="width:100%; margin-bottom:8px;">🔗 Copy Shareable Live Link</button>
     </div>
-    <button class="btn-pdf" onclick="generatePDF()">📥 Save Journey as PDF</button>
+    <button class="btn-pdf" id="pdfBtn" onclick="generatePDF()" style="width:100%;">📥 Save Journey as PDF</button>
   </div>
 </div>
 
@@ -95,7 +98,11 @@
 
 <script>
   const ABLY_KEY = 'tQeHYQ.ZsPdVg:oHH2d2amT9WrziD8QOrjuZppajh6ijgZZiQ-GsgysUU';
-  let ably, channel, watchId, stream, mediaRecorder;
+  const RTC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+  
+  let ably, channel, watchId, localStream, mediaRecorder;
+  let peerConnections = {}; 
+  let recordedBlobUrl = null;
   let isTracking = false, isRecording = false;
   let startTime, totalDist = 0, lastPos = null;
   let chunks = [];
@@ -114,7 +121,6 @@
   myName = myName.trim();
   document.getElementById('idBadge').innerText = `User: ${myName}`;
 
-  // REFRESH PROTECTION: This prevents accidental data loss
   window.addEventListener('beforeunload', (e) => {
     if (isTracking || isRecording) {
       e.preventDefault();
@@ -130,20 +136,193 @@
   try {
       ably = new Ably.Realtime({ key: ABLY_KEY, clientId: myName });
       channel = ably.channels.get(tripId);
+      
       channel.subscribe('comment', (msg) => displayComment(msg.data.role, msg.data.text, msg.data.name));
+      channel.subscribe('webrtc-signal', (msg) => handleWebRTCSignal(msg.data));
+
       channel.presence.enter({ role: myRole });
       
       if(!isViewer) {
           document.getElementById('viewerListCard').style.display = 'block';
           channel.presence.subscribe(() => {
               channel.presence.get((err, members) => {
-                  const viewers = members.filter(m => m.data.role === 'viewer');
+                  if (err) return;
+                  const viewers = members.filter(m => m.data && m.data.role === 'viewer');
                   const listNode = document.getElementById('viewerNames');
                   listNode.innerHTML = viewers.length === 0 ? "No one watching yet" : viewers.map(v => `<span class="viewer-chip">👤 ${v.clientId}</span>`).join('');
+                  
+                  if (localStream) {
+                      viewers.forEach(v => {
+                          if (!peerConnections[v.clientId]) {
+                              initiateWebRTCConnection(v.clientId);
+                          }
+                      });
+                  }
               });
           });
+      } else {
+          channel.publish('webrtc-signal', { type: 'viewer-ready', sender: myName });
       }
-  } catch(e) { console.error("Ably Init Failed"); }
+  } catch(e) { console.error("Ably Init Failed", e); }
+
+  async function toggleCamera() {
+    if(isRecording) return;
+    try {
+        const mode = confirm("Use Back Camera?") ? 'environment' : 'user';
+        localStream = await navigator.mediaDevices.getUserMedia({video: {facingMode: mode}, audio: true});
+        
+        const previewNode = document.getElementById('preview');
+        previewNode.srcObject = localStream;
+        previewNode.muted = true;
+        document.getElementById('videoArea').style.display = 'block';
+        document.getElementById('recDot').style.display = 'block';
+
+        chunks = [];
+        mediaRecorder = new MediaRecorder(localStream);
+        mediaRecorder.ondataavailable = e => { if(e.data.size > 0) chunks.push(e.data); };
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(chunks, {type: 'video/mp4'});
+          recordedBlobUrl = URL.createObjectURL(blob);
+          document.getElementById('saveVideoBtn').style.display = 'block';
+        };
+        mediaRecorder.start();
+        isRecording = true;
+        document.getElementById('camBtn').innerText = "🎥 Video Broadcasting";
+
+        channel.presence.get((err, members) => {
+            if(!err && members) {
+                members.filter(m => m.data && m.data.role === 'viewer').forEach(v => {
+                    initiateWebRTCConnection(v.clientId);
+                });
+            }
+        });
+
+    } catch(e) { alert("Camera Access Denied or Unavailable"); }
+  }
+
+  function downloadRecordedVideo() {
+    if(!recordedBlobUrl) {
+      alert("No video recorded yet.");
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = recordedBlobUrl;
+    a.download = `Journey_${myName}_${Date.now()}.mp4`;
+    a.click();
+  }
+
+  function initiateWebRTCConnection(targetClientId) {
+      if(peerConnections[targetClientId]) return;
+      
+      const pc = new RTCPeerConnection(RTC_CONFIG);
+      peerConnections[targetClientId] = pc;
+
+      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+      pc.onicecandidate = (event) => {
+          if (event.candidate) {
+              channel.publish('webrtc-signal', {
+                  type: 'candidate',
+                  candidate: event.candidate,
+                  target: targetClientId,
+                  sender: myName
+              });
+          }
+      };
+
+      pc.createOffer().then(offer => {
+          return pc.setLocalDescription(offer);
+      }).then(() => {
+          channel.publish('webrtc-signal', {
+              type: 'offer',
+              sdp: pc.localDescription,
+              target: targetClientId,
+              sender: myName
+          });
+      }).catch(e => console.error("Offer Error:", e));
+  }
+
+  async function handleWebRTCSignal(data) {
+      if (data.target && data.target !== myName) return;
+
+      if (isViewer && data.type === 'offer') {
+          const pc = new RTCPeerConnection(RTC_CONFIG);
+          peerConnections[data.sender] = pc;
+
+          pc.ontrack = (event) => {
+              const videoNode = document.getElementById('preview');
+              document.getElementById('videoArea').style.display = 'block';
+              if (videoNode.srcObject !== event.streams[0]) {
+                  videoNode.srcObject = event.streams[0];
+                  videoNode.muted = false; 
+              }
+          };
+
+          pc.onicecandidate = (event) => {
+              if (event.candidate) {
+                  channel.publish('webrtc-signal', {
+                      type: 'candidate',
+                      candidate: event.candidate,
+                      target: data.sender,
+                      sender: myName
+                  });
+              }
+          };
+
+          await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+
+          channel.publish('webrtc-signal', {
+              type: 'answer',
+              sdp: pc.localDescription,
+              target: data.sender,
+              sender: myName
+          });
+      } 
+      else if (!isViewer && data.type === 'answer') {
+          const pc = peerConnections[data.sender];
+          if (pc) {
+              await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+          }
+      } 
+      else if (data.type === 'candidate') {
+          const pc = peerConnections[data.sender];
+          if (pc) {
+              await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+          }
+      }
+      else if (!isViewer && data.type === 'viewer-ready' && localStream) {
+          initiateWebRTCConnection(data.sender);
+      }
+  }
+
+  function displayComment(role, text, senderName) {
+    const container = document.getElementById('chat-overlay');
+    
+    while (container.children.length >= 2) {
+      container.removeChild(container.firstChild);
+    }
+
+    const el = document.createElement('div');
+    el.className = `msg ${role}-msg`;
+    el.innerHTML = `<small style="font-weight:bold; opacity:0.8">${senderName}</small><br>${text}`;
+    container.appendChild(el);
+
+    setTimeout(() => {
+      if (el.parentNode === container) {
+        el.remove();
+      }
+    }, 8000);
+  }
+
+  function sendComment() {
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if(!text) return;
+    channel.publish('comment', { role: myRole, name: myName, text: text });
+    input.value = '';
+  }
 
   function generatePDF() {
     const { jsPDF } = window.jspdf;
@@ -261,51 +440,25 @@
     }
   }
 
-  function sendComment() {
-    const input = document.getElementById('chatInput');
-    const text = input.value.trim();
-    if(!text) return;
-    channel.publish('comment', { role: myRole, name: myName, text: text });
-    input.value = '';
-  }
-
-  function displayComment(role, text, senderName) {
-    const container = document.getElementById('chat-overlay');
-    const el = document.createElement('div');
-    el.className = `msg ${role}-msg`;
-    el.innerHTML = `<small style="font-weight:bold; opacity:0.8">${senderName}</small><br>${text}`;
-    container.appendChild(el);
-    setTimeout(() => el.remove(), 8000);
-  }
-
-  async function toggleCamera() {
-    try {
-        const mode = confirm("Use Back Camera?") ? 'environment' : 'user';
-        stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: mode}, audio: true});
-        document.getElementById('videoArea').style.display = 'block';
-        document.getElementById('preview').srcObject = stream;
-        mediaRecorder = new MediaRecorder(stream);
-        mediaRecorder.ondataavailable = e => chunks.push(e.data);
-        mediaRecorder.onstop = () => {
-          const blob = new Blob(chunks, {type: 'video/mp4'});
-          const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-          a.download = `Journey_${myName}.mp4`; a.click();
-        };
-        mediaRecorder.start();
-        isRecording = true;
-        document.getElementById('camBtn').innerText = "🎥 Recording Active";
-    } catch(e) { alert("Camera Access Denied"); }
-  }
-
   function stopAll() {
     isTracking = false;
     isRecording = false;
-    navigator.geolocation.clearWatch(watchId);
+    if (watchId) navigator.geolocation.clearWatch(watchId);
+    
     if(mediaRecorder && mediaRecorder.state !== "inactive") { 
         mediaRecorder.stop(); 
-        stream.getTracks().forEach(t => t.stop()); 
     }
+    if (localStream) {
+        localStream.getTracks().forEach(t => t.stop()); 
+    }
+
+    Object.values(peerConnections).forEach(pc => pc.close());
+    peerConnections = {};
+
     document.getElementById('status').innerText = "Ended";
+    document.getElementById('recDot').style.display = 'none';
+    document.getElementById('camBtn').innerText = "📷 Live Stream Ended";
+    
     if(channel) channel.publish('status', { msg: `${myName} ended the trip` });
   }
 
